@@ -1,0 +1,70 @@
+import type { NextRequest } from "next/server";
+import { prisma } from "@/lib/db/prisma";
+import { fail, handleApiError, ok } from "@/lib/api/response";
+import { getPaymentProvider } from "@/lib/payments/registry";
+import { finalizeSale } from "@/lib/services/checkout.service";
+import { recordAudit } from "@/lib/services/audit.service";
+import type { PaymentMethod } from "@/lib/payments/types";
+
+const PROVIDER_METHODS: Record<string, PaymentMethod> = {
+  momo: "MOMO",
+  card: "CARD",
+};
+
+/**
+ * Inbound provider callback. Unauthenticated by design — trust comes from the
+ * signature check inside `parseWebhook`, never from the session.
+ */
+export async function POST(request: NextRequest, { params }: { params: Promise<{ provider: string }> }) {
+  try {
+    const { provider: providerKey } = await params;
+    const method = PROVIDER_METHODS[providerKey];
+    if (!method) return fail("NOT_FOUND", "Unknown payment provider", 404);
+
+    const provider = getPaymentProvider(method);
+    if (!provider.parseWebhook) return fail("BAD_REQUEST", "Provider does not send webhooks", 400);
+
+    const rawBody = await request.text();
+    const headers = Object.fromEntries(
+      Array.from(request.headers.entries()).map(([key, value]) => [key.toLowerCase(), value]),
+    );
+
+    const event = await provider.parseWebhook(rawBody, headers);
+    if (!event) return fail("UNAUTHORIZED", "Invalid webhook signature", 401);
+
+    const payment = await prisma.payment.findFirst({
+      where: { externalRef: event.externalRef },
+      select: { id: true, saleId: true, status: true, sale: { select: { storeId: true, cashierId: true, status: true } } },
+    });
+
+    // Always 200 for unknown references so the provider stops retrying.
+    if (!payment) return ok({ received: true, matched: false });
+
+    if (payment.status !== "SUCCESSFUL") {
+      await prisma.payment.update({
+        where: { id: payment.id },
+        data: { status: event.state, paidAt: event.state === "SUCCESSFUL" ? new Date() : null },
+      });
+    }
+
+    if (event.state === "SUCCESSFUL" && payment.sale.status !== "COMPLETED") {
+      await finalizeSale(payment.saleId, {
+        storeId: payment.sale.storeId,
+        cashierId: payment.sale.cashierId,
+        allowPriceOverride: false,
+      });
+
+      await recordAudit({
+        action: "UPDATE",
+        entity: "Payment",
+        entityId: payment.id,
+        storeId: payment.sale.storeId,
+        summary: `Payment confirmed by ${providerKey} webhook`,
+      });
+    }
+
+    return ok({ received: true, matched: true });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}

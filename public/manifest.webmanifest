@@ -1,0 +1,20 @@
+{
+  "name": "MyPOS Supermarket",
+  "short_name": "MyPOS",
+  "description": "Point of sale and retail management for supermarkets in Ghana.",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f7faf8",
+  "theme_color": "#176b4d",
+  "lang": "en-GH",
+  "icons": [
+    {
+      "src": "/icons/mypos.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
