@@ -13,7 +13,11 @@ export const metadata: Metadata = {
   description: "Modern point of sale and retail management for supermarkets in Ghana.",
   applicationName: publicEnv.appName,
   manifest: "/manifest.webmanifest",
-  icons: { icon: "/icons/mypos.svg", apple: "/icons/mypos.svg" },
+  icons: {
+    icon: "/icons/mypos.svg",
+    shortcut: "/icons/mypos.svg",
+    apple: "/icons/mypos.svg",
+  },
   formatDetection: { telephone: false },
 };
 
