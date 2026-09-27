@@ -192,13 +192,13 @@ async function lowStock(storeId: string, limit: number) {
       reorderQty: Prisma.Decimal;
     }>
   >(Prisma.sql`
-    SELECT p.id AS "productId", p.name, p.sku, il.quantity, p."reorderLevel", p."reorderQty"
-    FROM "InventoryLevel" il
-    JOIN "Product" p ON p.id = il."productId"
-    WHERE il."storeId" = ${storeId}
-      AND p."trackStock" = true
-      AND p."isActive" = true
-      AND p."deletedAt" IS NULL
+    SELECT p.id AS productId, p.name, p.sku, il.quantity, p.reorderLevel, p.reorderQty
+    FROM \`InventoryLevel\` il
+    JOIN \`Product\` p ON p.id = il.productId
+    WHERE il.storeId = ${storeId}
+      AND p.trackStock = true
+      AND p.isActive = true
+      AND p.deletedAt IS NULL
       AND il.quantity < ${LOW_STOCK_THRESHOLD}
     ORDER BY il.quantity ASC, p.name ASC
     LIMIT ${limit}
@@ -237,16 +237,16 @@ async function topProducts(storeId: string, days: number, limit: number, cashier
   const rows = await prisma.$queryRaw<
     Array<{ productId: string; name: string; sku: string; quantity: Prisma.Decimal; revenue: Prisma.Decimal }>
   >(Prisma.sql`
-    SELECT si."productId", si."productName" AS name, si.sku,
-           SUM(si.quantity - si."refundedQty") AS quantity,
-           SUM(si."lineTotal") AS revenue
-    FROM "SaleItem" si
-    JOIN "Sale" s ON s.id = si."saleId"
-    WHERE s."storeId" = ${storeId}
-      AND s.status::text = ANY(${[...COUNTED_STATUSES]}::text[])
-      AND s."completedAt" BETWEEN ${from} AND ${to}
-      ${cashierId ? Prisma.sql`AND s."cashierId" = ${cashierId}` : Prisma.empty}
-    GROUP BY si."productId", si."productName", si.sku
+    SELECT si.productId, si.productName AS name, si.sku,
+           SUM(si.quantity - si.refundedQty) AS quantity,
+           SUM(si.lineTotal) AS revenue
+    FROM \`SaleItem\` si
+    JOIN \`Sale\` s ON s.id = si.saleId
+    WHERE s.storeId = ${storeId}
+      AND s.status IN (${Prisma.join([...COUNTED_STATUSES])})
+      AND s.completedAt BETWEEN ${from} AND ${to}
+      ${cashierId ? Prisma.sql`AND s.cashierId = ${cashierId}` : Prisma.empty}
+    GROUP BY si.productId, si.productName, si.sku
     ORDER BY revenue DESC
     LIMIT ${limit}
   `);
@@ -312,13 +312,13 @@ export async function getDashboardData(storeId: string, cashierId?: string): Pro
       topProducts(storeId, 30, 5, cashierId),
       recentTransactions(storeId, 6, cashierId),
       prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
-        SELECT COUNT(*)::bigint AS count
-        FROM "InventoryLevel" il
-        JOIN "Product" p ON p.id = il."productId"
-        WHERE il."storeId" = ${storeId}
-          AND p."trackStock" = true
-          AND p."isActive" = true
-          AND p."deletedAt" IS NULL
+        SELECT COUNT(*) AS count
+        FROM \`InventoryLevel\` il
+        JOIN \`Product\` p ON p.id = il.productId
+        WHERE il.storeId = ${storeId}
+          AND p.trackStock = true
+          AND p.isActive = true
+          AND p.deletedAt IS NULL
           AND il.quantity < ${LOW_STOCK_THRESHOLD}
       `),
           expiringItems(storeId, 5),
