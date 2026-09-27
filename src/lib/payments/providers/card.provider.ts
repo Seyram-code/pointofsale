@@ -1,6 +1,7 @@
 import "server-only";
 import { cardConfig, missingKeys } from "@/lib/payments/config";
 import { PaymentNotConfiguredError } from "@/lib/payments/errors";
+import { generateAuthorizationCode, generateExternalReference } from "@/lib/services/id-registry";
 import type { PaymentProvider, PaymentRequest, PaymentResult, WebhookEvent } from "@/lib/payments/types";
 
 /**
@@ -21,9 +22,9 @@ export class MockCardProvider implements PaymentProvider {
   async initiate(request: PaymentRequest): Promise<PaymentResult> {
     return {
       state: "SUCCESSFUL",
-      externalRef: `MOCK-CARD-${Date.now()}`,
+      externalRef: generateExternalReference("MOCK-CARD"),
       amount: request.amount,
-      authCode: String(Math.floor(100000 + Math.random() * 899999)),
+      authCode: generateAuthorizationCode(),
       cardScheme: request.card?.scheme ?? "VISA",
       cardLast4: request.card?.last4 ?? "4242",
       message: "Mock card authorised",

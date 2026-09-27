@@ -116,29 +116,29 @@ async function salesTotals(storeId: string, from: Date, to: Date, cashierId?: st
 async function grossProfit(storeId: string, from: Date, to: Date, cashierId?: string): Promise<number> {
   const rows = await prisma.$queryRaw<Array<{ profit: Prisma.Decimal | null }>>(Prisma.sql`
     SELECT COALESCE(SUM(
-      (si."lineTotal" - si."taxAmount")
-        * (GREATEST(si.quantity - si."refundedQty", 0) / NULLIF(si.quantity, 0))
-      - si."unitCost" * GREATEST(si.quantity - si."refundedQty", 0)
+      (si.lineTotal - si.taxAmount)
+        * (GREATEST(si.quantity - si.refundedQty, 0) / NULLIF(si.quantity, 0))
+      - si.unitCost * GREATEST(si.quantity - si.refundedQty, 0)
     ), 0) AS profit
-    FROM "SaleItem" si
-    JOIN "Sale" s ON s.id = si."saleId"
-    WHERE s."storeId" = ${storeId}
-      AND s.status::text = ANY(${[...COUNTED_STATUSES]}::text[])
-      AND s."completedAt" BETWEEN ${from} AND ${to}
-      ${cashierId ? Prisma.sql`AND s."cashierId" = ${cashierId}` : Prisma.empty}
+    FROM \`SaleItem\` si
+    JOIN \`Sale\` s ON s.id = si.saleId
+    WHERE s.storeId = ${storeId}
+      AND s.status IN (${Prisma.join([...COUNTED_STATUSES])})
+      AND s.completedAt BETWEEN ${from} AND ${to}
+      ${cashierId ? Prisma.sql`AND s.cashierId = ${cashierId}` : Prisma.empty}
   `);
   return num(rows[0]?.profit);
 }
 
 async function paymentTotals(storeId: string, from: Date, to: Date, cashierId?: string): Promise<PaymentBreakdownSlice[]> {
   const rows = await prisma.$queryRaw<Array<{ method: string; amount: Prisma.Decimal | null; count: bigint }>>(Prisma.sql`
-    SELECT p.method::text AS method, COALESCE(SUM(p.amount), 0) AS amount, COUNT(*)::bigint AS count
-    FROM "Payment" p
-    JOIN "Sale" s ON s.id = p."saleId"
-    WHERE s."storeId" = ${storeId}
-      AND p.status::text = 'SUCCESSFUL'
-      AND p."createdAt" BETWEEN ${from} AND ${to}
-      ${cashierId ? Prisma.sql`AND s."cashierId" = ${cashierId}` : Prisma.empty}
+    SELECT p.method AS method, COALESCE(SUM(p.amount), 0) AS amount, COUNT(*) AS count
+    FROM \`Payment\` p
+    JOIN \`Sale\` s ON s.id = p.saleId
+    WHERE s.storeId = ${storeId}
+      AND p.status = 'SUCCESSFUL'
+      AND p.createdAt BETWEEN ${from} AND ${to}
+      ${cashierId ? Prisma.sql`AND s.cashierId = ${cashierId}` : Prisma.empty}
     GROUP BY p.method
     ORDER BY amount DESC
   `);
@@ -155,16 +155,16 @@ async function salesTrend(storeId: string, days: number, cashierId?: string): Pr
   const { from, to } = lastNDaysRange(days);
 
   const rows = await prisma.$queryRaw<Array<{ day: Date; revenue: Prisma.Decimal | null; transactions: bigint }>>(Prisma.sql`
-    SELECT date_trunc('day', s."completedAt") AS day,
-           COALESCE(SUM(s.total - s."refundedAmount"), 0) AS revenue,
-           COUNT(*)::bigint AS transactions
-    FROM "Sale" s
-    WHERE s."storeId" = ${storeId}
-      AND s.status::text = ANY(${[...COUNTED_STATUSES]}::text[])
-      AND s."completedAt" BETWEEN ${from} AND ${to}
-      ${cashierId ? Prisma.sql`AND s."cashierId" = ${cashierId}` : Prisma.empty}
-    GROUP BY 1
-    ORDER BY 1
+    SELECT DATE(s.completedAt) AS day,
+           COALESCE(SUM(s.total - s.refundedAmount), 0) AS revenue,
+           COUNT(*) AS transactions
+    FROM \`Sale\` s
+    WHERE s.storeId = ${storeId}
+      AND s.status IN (${Prisma.join([...COUNTED_STATUSES])})
+      AND s.completedAt BETWEEN ${from} AND ${to}
+      ${cashierId ? Prisma.sql`AND s.cashierId = ${cashierId}` : Prisma.empty}
+    GROUP BY DATE(s.completedAt)
+    ORDER BY DATE(s.completedAt)
   `);
 
   const byDay = new Map(rows.map((row) => [startOfDay(new Date(row.day)).toISOString(), row]));

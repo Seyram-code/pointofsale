@@ -160,11 +160,11 @@ export async function getPlatformOverview(): Promise<PlatformOverview> {
       _sum: { total: true },
     }),
     prisma.$queryRaw<Array<{ storeId: string; total: Prisma.Decimal | number | null }>>(Prisma.sql`
-      SELECT s."storeId", COALESCE(SUM(p.amount), 0) AS total
-      FROM "Payment" p
-      INNER JOIN "Sale" s ON s.id = p."saleId"
+      SELECT s.storeId, COALESCE(SUM(p.amount), 0) AS total
+      FROM \`Payment\` p
+      INNER JOIN \`Sale\` s ON s.id = p.saleId
       WHERE p.status = 'SUCCESSFUL'
-      GROUP BY s."storeId"
+      GROUP BY s.storeId
     `),
   ]);
   const salesByStoreId = new Map(salesByStore.map((row) => [row.storeId, row]));

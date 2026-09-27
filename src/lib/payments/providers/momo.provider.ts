@@ -3,6 +3,7 @@ import { missingKeys, momoConfig } from "@/lib/payments/config";
 import { PaymentError, PaymentNotConfiguredError } from "@/lib/payments/errors";
 import { normalizeGhanaPhone } from "@/lib/utils/format";
 import { MOMO_NETWORK_PREFIXES } from "@/lib/config/constants";
+import { generateExternalReference } from "@/lib/services/id-registry";
 import type {
   MomoNetwork,
   PaymentProvider,
@@ -49,7 +50,7 @@ export class MockMomoProvider implements PaymentProvider {
 
     return {
       state: "SUCCESSFUL",
-      externalRef: `MOCK-MOMO-${Date.now()}`,
+      externalRef: generateExternalReference("MOCK-MOMO"),
       amount: request.amount,
       message: `Mock ${network} prompt approved on ${phone}`,
       raw: { mock: true, phone, network },

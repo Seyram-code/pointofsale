@@ -1,6 +1,7 @@
 import "server-only";
 import { missingKeys, terminalConfig } from "@/lib/payments/config";
 import { PaymentError, PaymentNotConfiguredError } from "@/lib/payments/errors";
+import { generateAuthorizationCode, generateExternalReference, generateRetrievalReference } from "@/lib/services/id-registry";
 import type { PaymentProvider, PaymentRequest, PaymentResult } from "@/lib/payments/types";
 
 /**
@@ -21,10 +22,10 @@ export class MockTerminalProvider implements PaymentProvider {
   async initiate(request: PaymentRequest): Promise<PaymentResult> {
     return {
       state: "SUCCESSFUL",
-      externalRef: `MOCK-POS-${Date.now()}`,
+      externalRef: generateExternalReference("MOCK-POS"),
       amount: request.amount,
-      authCode: String(Math.floor(100000 + Math.random() * 899999)),
-      rrn: `${Date.now()}`.slice(-12),
+      authCode: generateAuthorizationCode(),
+      rrn: generateRetrievalReference(),
       cardScheme: "GHLINK",
       cardLast4: "4242",
       message: "Mock terminal approved the card",

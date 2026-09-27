@@ -4,6 +4,7 @@ import { ApiError, handleApiError, ok } from "@/lib/api/response";
 import { MOMO_NETWORK_PREFIXES } from "@/lib/config/constants";
 import { PaymentError } from "@/lib/payments/errors";
 import { getPaymentProvider } from "@/lib/payments/registry";
+import { generateStoreScopedReference } from "@/lib/services/id-registry";
 import { getPlatformPlanPricing } from "@/lib/services/plan-pricing.service";
 import { normalizeGhanaPhone } from "@/lib/utils/format";
 import { z } from "zod";
@@ -61,7 +62,7 @@ export async function POST(request: Request) {
           method: paymentMethod,
           amount: selectedPlan.monthlyPrice,
           currency: "GHS",
-          reference: `SUB-${session.user.storeId}-${Date.now()}`,
+          reference: generateStoreScopedReference(session.user.storeId, "SUB", 12),
           description: `${selectedPlan.name} subscription`,
           storeId: session.user.storeId,
           cashierId: session.user.id,

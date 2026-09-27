@@ -4,6 +4,7 @@ import { ApiError, handleApiError, ok } from "@/lib/api/response";
 import { hashPassword, checkPasswordStrength } from "@/lib/auth/password";
 import { createSession } from "@/lib/auth/session";
 import { nextShortNumber } from "@/lib/services/numbering.service";
+import { generateBusinessId, generateBranchCode } from "@/lib/services/id-registry";
 import { registrationSchema } from "@/lib/validations/registration.schema";
 
 export async function POST(request: NextRequest) {
@@ -21,14 +22,14 @@ export async function POST(request: NextRequest) {
       const existing = await tx.user.findUnique({ where: { email: ownerEmail }, select: { id: true } });
       if (existing) throw ApiError.conflict("An account with this email already exists");
 
-      const businessId = `BUS-${crypto.randomUUID().slice(0, 12).toUpperCase()}`;
+      const businessId = generateBusinessId();
       const store = await tx.store.create({
         data: {
           businessId,
           name: input.businessName,
           businessType: input.businessType,
           businessRegistrationNumber: input.businessRegistrationNumber || null,
-          branchCode: `SHOP-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
+          branchCode: generateBranchCode(),
           phone: input.businessPhone,
           email: businessEmail,
           addressLine: input.address,

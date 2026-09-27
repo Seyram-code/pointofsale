@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import { ApiError, handleApiError, ok } from "@/lib/api/response";
 import { getPaymentProvider } from "@/lib/payments/registry";
 import { PaymentError } from "@/lib/payments/errors";
+import { generateStoreScopedReference } from "@/lib/services/id-registry";
 import { MOMO_NETWORK_PREFIXES } from "@/lib/config/constants";
 import { getPlatformPlanPricing } from "@/lib/services/plan-pricing.service";
 import { normalizeGhanaPhone } from "@/lib/utils/format";
@@ -60,7 +61,7 @@ export async function POST(
           method: input.paymentMethod,
           amount: selectedPlan.monthlyPrice,
           currency: "GHS",
-          reference: `SUB-${storeId}-${Date.now()}`,
+          reference: generateStoreScopedReference(storeId, "SUB", 12),
           description: `${selectedPlan.name} subscription for ${store.name}`,
           storeId,
           cashierId: session.user.id,
