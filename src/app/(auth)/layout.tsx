@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import { BarChart3, ScanBarcode, Smartphone } from "lucide-react";
 import { getSession } from "@/lib/auth/session";
 import { StoreLogo } from "@/components/brand/StoreLogo";
@@ -29,10 +30,14 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
           className="pointer-events-none absolute -bottom-32 -left-20 size-96 rounded-full bg-accent-500/15 blur-3xl"
         />
 
-        <div className="relative z-10 flex items-center gap-3">
+        <Link
+          href="/"
+          aria-label={`${publicEnv.businessName} home`}
+          className="relative z-10 flex items-center gap-3 rounded-xl outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand-800"
+        >
           <StoreLogo size="sm" className="shadow-none" />
           <span className="text-lg font-semibold">{publicEnv.businessName}</span>
-        </div>
+        </Link>
 
         <div className="relative z-10 mx-auto mt-10 w-full max-w-lg rounded-3xl border border-white/20 bg-black/15 p-3 shadow-2xl backdrop-blur-sm">
           <div className="aspect-[4/3] overflow-hidden rounded-2xl bg-brand-950">
