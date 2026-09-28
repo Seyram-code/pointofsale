@@ -50,19 +50,39 @@ export function SupportTicketsView({ isSuperAdmin }: { isSuperAdmin: boolean }) 
   const toast = useToast();
   const selected = tickets.find((ticket) => ticket.id === selectedId) ?? tickets[0];
 
-  async function loadTickets() {
-    try {
-      const result = await api.get<Ticket[]>("/support/tickets");
-      setTickets(result);
-      setSelectedId((current) => current && result.some((ticket) => ticket.id === current) ? current : result[0]?.id ?? null);
-    } catch (loadError) {
-      setError(loadError instanceof ApiClientError ? loadError.message : "Unable to load support tickets.");
-    } finally {
-      setLoading(false);
-    }
-  }
+  useEffect(() => {
+    let cancelled = false;
+    let inFlight = false;
 
-  useEffect(() => { void loadTickets(); }, []);
+    async function refreshTickets(initial = false) {
+      if (cancelled || inFlight || document.visibilityState !== "visible") return;
+      inFlight = true;
+      try {
+        const result = await api.get<Ticket[]>("/support/tickets");
+        if (cancelled) return;
+        setTickets(result);
+        setSelectedId((current) => current && result.some((ticket) => ticket.id === current) ? current : result[0]?.id ?? null);
+      } catch (loadError) {
+        if (initial && !cancelled) setError(loadError instanceof ApiClientError ? loadError.message : "Unable to load support tickets.");
+      } finally {
+        inFlight = false;
+        if (initial && !cancelled) setLoading(false);
+      }
+    }
+
+    const refreshOnReturn = () => void refreshTickets();
+    const interval = window.setInterval(refreshOnReturn, 5_000);
+    window.addEventListener("focus", refreshOnReturn);
+    document.addEventListener("visibilitychange", refreshOnReturn);
+    void refreshTickets(true);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshOnReturn);
+      document.removeEventListener("visibilitychange", refreshOnReturn);
+    };
+  }, []);
 
   async function createTicket(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
