@@ -28,6 +28,7 @@ export function SystemStaffManagement({ initialStaff = [] }: { initialStaff?: Sy
   const [error, setError] = useState("");
   const [statusConfirmation, setStatusConfirmation] = useState<{ member: SystemStaff; disabled: boolean } | null>(null);
   const [passwordResetFor, setPasswordResetFor] = useState<SystemStaff | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<SystemStaff | null>(null);
   const toast = useToast();
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -90,7 +91,13 @@ export function SystemStaffManagement({ initialStaff = [] }: { initialStaff?: Sy
   }
 
   async function deleteStaff(member: SystemStaff) {
-    if (!window.confirm(`Delete ${member.fullName}'s system staff account? This will revoke access immediately.`)) return;
+    setDeleteConfirmation(member);
+  }
+
+  async function confirmDeleteStaff() {
+    if (!deleteConfirmation) return;
+    const member = deleteConfirmation;
+    setDeleteConfirmation(null);
     setBusy(true);
     setError("");
     try {
@@ -151,6 +158,17 @@ export function SystemStaffManagement({ initialStaff = [] }: { initialStaff?: Sy
         loading={busy}
         onCancel={() => setStatusConfirmation(null)}
         onConfirm={() => void confirmStatusChange()}
+      />
+
+      <ConfirmDialog
+        open={deleteConfirmation !== null}
+        title={`Delete ${deleteConfirmation?.fullName}'s account?`}
+        message="This will revoke access immediately and cannot be undone."
+        confirmLabel="Delete account"
+        destructive
+        loading={busy}
+        onCancel={() => setDeleteConfirmation(null)}
+        onConfirm={() => void confirmDeleteStaff()}
       />
 
       {passwordResetFor && (

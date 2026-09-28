@@ -10,6 +10,7 @@ import { Select } from "@/components/ui/Select";
 import { Badge } from "@/components/ui/Badge";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useToast } from "@/components/ui/Toast";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 type StaffRole = "SUPER_ADMIN" | "ADMIN" | "MANAGER" | "SUPERVISOR" | "CASHIER" | "STOCK_KEEPER" | "ACCOUNTANT";
 
@@ -42,6 +43,7 @@ export function EmployeeManagement({ initialEmployees, canManageAdmins }: { init
   const [error, setError] = useState("");
   const [role, setRole] = useState<StaffRole>("CASHIER");
   const [preview, setPreview] = useState({ staffCode: "Generating...", employeeNumber: "Generating..." });
+  const [statusConfirmation, setStatusConfirmation] = useState<{ employee: EmployeeRecord; disabled: boolean } | null>(null);
   const toast = useToast();
 
   useEffect(() => {
@@ -87,7 +89,13 @@ export function EmployeeManagement({ initialEmployees, canManageAdmins }: { init
 
   async function toggleStatus(employee: EmployeeRecord) {
     const disabled = employee.user.status === "ACTIVE";
-    if (!window.confirm(`${disabled ? "Disable" : "Enable"} ${employee.user.fullName}'s account?`)) return;
+    setStatusConfirmation({ employee, disabled });
+  }
+
+  async function confirmStatusChange() {
+    if (!statusConfirmation) return;
+    const { employee, disabled } = statusConfirmation;
+    setStatusConfirmation(null);
     setBusy(true);
     setError("");
     try {
@@ -158,6 +166,17 @@ export function EmployeeManagement({ initialEmployees, canManageAdmins }: { init
           </Card>
         </div>
       )}
+
+      <ConfirmDialog
+        open={statusConfirmation !== null}
+        title={statusConfirmation?.disabled ? `Disable ${statusConfirmation.employee.user.fullName}'s account?` : `Enable ${statusConfirmation?.employee.user.fullName}'s account?`}
+        message={statusConfirmation?.disabled ? "This will block the employee from signing in until the account is enabled again." : "This will restore the employee's ability to sign in."}
+        confirmLabel={statusConfirmation?.disabled ? "Disable account" : "Enable account"}
+        destructive={statusConfirmation?.disabled}
+        loading={busy}
+        onCancel={() => setStatusConfirmation(null)}
+        onConfirm={() => void confirmStatusChange()}
+      />
     </>
   );
 }

@@ -5,15 +5,16 @@ import { RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 export function RenewSubscriptionButton({ storeId, businessName }: { storeId: string; businessName: string }) {
   const router = useRouter();
   const { success, error } = useToast();
   const [loading, setLoading] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   async function renew() {
-    if (!window.confirm(`Renew the subscription for ${businessName} for one month?`)) return;
-
+    setConfirmOpen(false);
     setLoading(true);
     try {
       const response = await fetch(`/api/platform/businesses/${storeId}/subscription/renew`, { method: "POST" });
@@ -30,16 +31,27 @@ export function RenewSubscriptionButton({ storeId, businessName }: { storeId: st
   }
 
   return (
+    <>
     <Button
       type="button"
       size="sm"
       variant="success"
       loading={loading}
       leftIcon={<RefreshCw className="size-3.5" />}
-      onClick={renew}
+      onClick={() => setConfirmOpen(true)}
       aria-label={`Renew subscription for ${businessName}`}
     >
       Renew subscription
     </Button>
+    <ConfirmDialog
+      open={confirmOpen}
+      title="Renew subscription?"
+      message={`Renew the subscription for ${businessName} for one month?`}
+      confirmLabel="Renew subscription"
+      loading={loading}
+      onCancel={() => setConfirmOpen(false)}
+      onConfirm={() => void renew()}
+    />
+    </>
   );
 }

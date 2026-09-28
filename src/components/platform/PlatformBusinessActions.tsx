@@ -5,6 +5,7 @@ import { Eye, PauseCircle, PlayCircle, Settings2, XCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { RenewSubscriptionButton } from "@/components/platform/RenewSubscriptionButton";
 
@@ -43,10 +44,9 @@ export function PlatformBusinessActions({ store }: { store: PlatformBusinessActi
   const [selectedPlan, setSelectedPlan] = useState<Plan>((store.plan as Plan) ?? "STARTER");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CARD");
   const [loading, setLoading] = useState<Action | null>(null);
+  const [confirmation, setConfirmation] = useState<Action | null>(null);
 
   async function runAction(action: Action, plan?: Plan) {
-    if (action !== "change_plan" && !window.confirm(`${action[0].toUpperCase()}${action.slice(1)} ${store.name}?`)) return;
-
     setLoading(action);
     try {
       const response = await fetch(`/api/platform/businesses/${store.id}`, {
@@ -67,6 +67,14 @@ export function PlatformBusinessActions({ store }: { store: PlatformBusinessActi
     }
   }
 
+  function requestAction(action: Action) {
+    if (action === "change_plan") {
+      void runAction(action, selectedPlan);
+      return;
+    }
+    setConfirmation(action);
+  }
+
   return (
     <>
       <div className="flex min-w-[360px] flex-wrap gap-2">
@@ -74,15 +82,15 @@ export function PlatformBusinessActions({ store }: { store: PlatformBusinessActi
           View
         </Button>
         {store.isActive ? (
-          <Button type="button" size="sm" variant="outline" loading={loading === "suspend"} leftIcon={<PauseCircle className="size-3.5" />} onClick={() => runAction("suspend")}>
+          <Button type="button" size="sm" variant="outline" loading={loading === "suspend"} leftIcon={<PauseCircle className="size-3.5" />} onClick={() => requestAction("suspend")}>
             Suspend
           </Button>
         ) : (
-          <Button type="button" size="sm" variant="success" loading={loading === "activate"} leftIcon={<PlayCircle className="size-3.5" />} onClick={() => runAction("activate")}>
+          <Button type="button" size="sm" variant="success" loading={loading === "activate"} leftIcon={<PlayCircle className="size-3.5" />} onClick={() => requestAction("activate")}>
             Activate
           </Button>
         )}
-        <Button type="button" size="sm" variant="danger" loading={loading === "cancel"} leftIcon={<XCircle className="size-3.5" />} onClick={() => runAction("cancel")}>
+        <Button type="button" size="sm" variant="danger" loading={loading === "cancel"} leftIcon={<XCircle className="size-3.5" />} onClick={() => requestAction("cancel")}>
           Cancel
         </Button>
         <Button type="button" size="sm" variant="outline" leftIcon={<Settings2 className="size-3.5" />} onClick={() => setPlanOpen(true)}>
@@ -125,7 +133,7 @@ export function PlatformBusinessActions({ store }: { store: PlatformBusinessActi
         footer={
           <>
             <Button type="button" variant="outline" onClick={() => setPlanOpen(false)} disabled={loading === "change_plan"}>Cancel</Button>
-            <Button type="button" loading={loading === "change_plan"} onClick={() => runAction("change_plan", selectedPlan)}>Save plan</Button>
+            <Button type="button" loading={loading === "change_plan"} onClick={() => requestAction("change_plan")}>Save plan</Button>
           </>
         }
       >
@@ -146,6 +154,17 @@ export function PlatformBusinessActions({ store }: { store: PlatformBusinessActi
           </label>
         )}
       </Modal>
+
+      <ConfirmDialog
+        open={confirmation !== null}
+        title={`${confirmation ? confirmation[0].toUpperCase() + confirmation.slice(1) : "Confirm"} business action?`}
+        message={`${confirmation ? confirmation[0].toUpperCase() + confirmation.slice(1) : "Update"} ${store.name}?`}
+        confirmLabel={confirmation ? confirmation[0].toUpperCase() + confirmation.slice(1) : "Confirm"}
+        destructive={confirmation === "cancel" || confirmation === "suspend"}
+        loading={confirmation !== null && loading === confirmation}
+        onCancel={() => setConfirmation(null)}
+        onConfirm={() => { if (confirmation) void runAction(confirmation); setConfirmation(null); }}
+      />
     </>
   );
 }
