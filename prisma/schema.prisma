@@ -971,6 +971,7 @@ model SupportTicketMessage {
   authorId  String
   body      String   @db.Text
   createdAt DateTime @default(now())
+  readAt    DateTime?
 
   ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   author User          @relation(fields: [authorId], references: [id], onDelete: Cascade)

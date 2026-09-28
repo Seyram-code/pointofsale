@@ -1,7 +1,7 @@
 import "server-only";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
-import { addDays, dayLabel, lastNDaysRange, percentChange, startOfDay, todayRange, yesterdayRange } from "@/lib/utils/date";
+import { addDays, dayLabel, endOfDay, lastNDaysRange, percentChange, startOfDay, todayRange, yesterdayRange } from "@/lib/utils/date";
 
 const COUNTED_STATUSES = ["COMPLETED", "PARTIALLY_REFUNDED"] as const;
 const LOW_STOCK_THRESHOLD = 10;
@@ -206,12 +206,12 @@ async function lowStock(storeId: string, limit: number) {
 }
 
 async function expiringItems(storeId: string, limit: number): Promise<ExpiringItem[]> {
-  const now = new Date();
-  const end = addDays(now, EXPIRY_ALERT_DAYS);
+  const today = startOfDay();
+  const end = endOfDay(addDays(today, EXPIRY_ALERT_DAYS));
   const batches = await prisma.productBatch.findMany({
     where: {
       quantity: { gt: 0 },
-      expiryDate: { gte: now, lte: end },
+      expiryDate: { gte: today, lte: end },
       product: { storeId, isActive: true, deletedAt: null },
     },
     orderBy: [{ expiryDate: "asc" }, { quantity: "desc" }],
@@ -227,7 +227,7 @@ async function expiringItems(storeId: string, limit: number): Promise<ExpiringIt
     batchNumber: batch.batchNumber,
     quantity: num(batch.quantity),
     expiryDate: batch.expiryDate as Date,
-    daysUntilExpiry: Math.max(0, Math.ceil((batch.expiryDate!.getTime() - now.getTime()) / 86400000)),
+    daysUntilExpiry: Math.max(0, Math.ceil((batch.expiryDate!.getTime() - today.getTime()) / 86400000)),
   }));
 }
 

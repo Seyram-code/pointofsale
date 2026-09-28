@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS `SupportTicketMessage` (
     `authorId` VARCHAR(191) NOT NULL,
     `body` TEXT NOT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `readAt` DATETIME(3) NULL,
 
     PRIMARY KEY (`id`),
     INDEX `SupportTicketMessage_ticketId_createdAt_idx` (`ticketId`, `createdAt`),

@@ -1,9 +1,27 @@
 import { NextRequest } from "next/server";
+import { Prisma } from "@prisma/client";
+import { randomInt } from "node:crypto";
 import { authorize } from "@/lib/auth/guard";
 import { PERMISSIONS } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/db/prisma";
 import { fail, handleApiError, ok } from "@/lib/api/response";
 import { DECIMAL_MONEY, DECIMAL_QTY } from "@/lib/services/cart.service";
+
+function generatedSku(name: string) {
+  const prefix = name
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .slice(0, 4)
+    .toUpperCase() || "ITEM";
+  return `${prefix}-${randomInt(0, 10_000_000).toString().padStart(7, "0")}`;
+}
+
+function isSkuUniqueConflict(error: unknown) {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") return false;
+  const target = error.meta?.target;
+  return Array.isArray(target) ? target.includes("sku") : typeof target === "string" && target.toLowerCase().includes("sku");
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,7 +32,6 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as Record<string, unknown>;
     const name = typeof body.name === "string" ? body.name.trim() : "";
     const enteredSku = typeof body.sku === "string" ? body.sku.trim() : "";
-    const sku = enteredSku || `AUTO-${crypto.randomUUID()}`;
     const barcode = typeof body.barcode === "string" ? body.barcode.trim() : "";
     const costPrice = Number(body.costPrice);
     const sellingPrice = Number(body.sellingPrice);
@@ -34,7 +51,10 @@ export async function POST(request: NextRequest) {
       return fail("VALIDATION_ERROR", "Name, prices and a valid quantity are required.", 422);
     }
 
-    const product = await prisma.$transaction(async (tx) => {
+    for (let attempt = 0; attempt < (enteredSku ? 1 : 5); attempt += 1) {
+      const sku = enteredSku || generatedSku(name);
+      try {
+        const product = await prisma.$transaction(async (tx) => {
       const createdProduct = await tx.product.create({
         data: {
           storeId,
@@ -88,10 +108,17 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      return createdProduct;
-    });
+          return createdProduct;
+        });
 
-    return ok(product, undefined, 201);
+        return ok(product, undefined, 201);
+      } catch (error) {
+        if (!enteredSku && isSkuUniqueConflict(error) && attempt < 4) continue;
+        throw error;
+      }
+    }
+
+    throw new Error("Could not generate a unique SKU for this product");
   } catch (error) {
     return handleApiError(error);
   }
