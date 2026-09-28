@@ -47,6 +47,7 @@ export function SupportTicketsView({ isSuperAdmin }: { isSuperAdmin: boolean }) 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [reply, setReply] = useState("");
+  const [typingUsers, setTypingUsers] = useState<{ id: string; fullName: string }[]>([]);
   const toast = useToast();
   const selected = tickets.find((ticket) => ticket.id === selectedId) ?? tickets[0];
 
@@ -83,6 +84,40 @@ export function SupportTicketsView({ isSuperAdmin }: { isSuperAdmin: boolean }) 
       document.removeEventListener("visibilitychange", refreshOnReturn);
     };
   }, []);
+
+  useEffect(() => {
+    if (!selectedId) {
+      setTypingUsers([]);
+      return;
+    }
+    let cancelled = false;
+    async function refreshTyping() {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const users = await api.get<{ id: string; fullName: string }[]>(`/support/tickets/${selectedId}/typing`);
+        if (!cancelled) setTypingUsers(users);
+      } catch {
+        if (!cancelled) setTypingUsers([]);
+      }
+    }
+    void refreshTyping();
+    const interval = window.setInterval(() => void refreshTyping(), 2_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [selectedId]);
+
+  useEffect(() => {
+    if (!selectedId || !reply.trim()) return;
+    const sendTyping = () => void api.post(`/support/tickets/${selectedId}/typing`).catch(() => undefined);
+    const timeout = window.setTimeout(sendTyping, 250);
+    const interval = window.setInterval(sendTyping, 2_500);
+    return () => {
+      window.clearTimeout(timeout);
+      window.clearInterval(interval);
+    };
+  }, [selectedId, reply]);
 
   async function createTicket(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -159,7 +194,7 @@ export function SupportTicketsView({ isSuperAdmin }: { isSuperAdmin: boolean }) 
         </Card>
 
         <Card>
-          {!selected ? <CardContent className="flex min-h-64 flex-col items-center justify-center text-center"><LifeBuoy className="size-8 text-fg-muted" /><p className="mt-3 font-medium text-fg">Select a ticket</p><p className="mt-1 text-sm text-fg-muted">Ticket conversations will appear here.</p></CardContent> : <><CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle>{selected.subject}</CardTitle><p className="mt-1 text-sm text-fg-muted">{selected.store.name} · {selected.category} · {selected.priority} priority</p></div>{isSuperAdmin && <Select label="Status" value={selected.status} options={Object.entries(statusLabels).map(([value, label]) => ({ value, label }))} onChange={(event) => void updateStatus(event.target.value as TicketStatus)} disabled={busy} />}</div></CardHeader><CardContent><div className="space-y-4">{selected.messages.map((message) => <div key={message.id} className={`rounded-lg border border-line p-3 ${message.author.role === "SUPER_ADMIN" ? "ml-5 bg-brand-50/50 dark:bg-brand-950/20" : "mr-5 bg-muted/30"}`}><div className="flex justify-between gap-3 text-xs text-fg-muted"><span className="font-semibold text-fg">{message.author.fullName}</span><time>{new Date(message.createdAt).toLocaleString("en-GB")}</time></div><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-fg-secondary">{message.body}</p></div>)}</div><form onSubmit={submitReply} className="mt-5 flex gap-2"><Input aria-label="Reply" value={reply} onChange={(event) => setReply(event.target.value)} placeholder="Write a reply" required /><Button type="submit" loading={busy} size="icon" aria-label="Send reply"><MessageSquare className="size-4" /></Button></form></CardContent></>}
+          {!selected ? <CardContent className="flex min-h-64 flex-col items-center justify-center text-center"><LifeBuoy className="size-8 text-fg-muted" /><p className="mt-3 font-medium text-fg">Select a ticket</p><p className="mt-1 text-sm text-fg-muted">Ticket conversations will appear here.</p></CardContent> : <><CardHeader><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle>{selected.subject}</CardTitle><p className="mt-1 text-sm text-fg-muted">{selected.store.name} · {selected.category} · {selected.priority} priority</p></div>{isSuperAdmin && <Select label="Status" value={selected.status} options={Object.entries(statusLabels).map(([value, label]) => ({ value, label }))} onChange={(event) => void updateStatus(event.target.value as TicketStatus)} disabled={busy} />}</div></CardHeader><CardContent><div className="space-y-4">{selected.messages.map((message) => <div key={message.id} className={`rounded-lg border border-line p-3 ${message.author.role === "SUPER_ADMIN" ? "ml-5 bg-brand-50/50 dark:bg-brand-950/20" : "mr-5 bg-muted/30"}`}><div className="flex justify-between gap-3 text-xs text-fg-muted"><span className="font-semibold text-fg">{message.author.fullName}</span><time>{new Date(message.createdAt).toLocaleString("en-GB")}</time></div><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-fg-secondary">{message.body}</p></div>)}</div>{typingUsers.length > 0 && <p className="mt-4 text-xs italic text-brand-600">{typingUsers.map((user) => user.fullName).join(", ")} {typingUsers.length === 1 ? "is" : "are"} typing...</p>}<form onSubmit={submitReply} className="mt-5 flex gap-2"><Input aria-label="Reply" value={reply} onChange={(event) => setReply(event.target.value)} placeholder="Write a reply" required /><Button type="submit" loading={busy} size="icon" aria-label="Send reply"><MessageSquare className="size-4" /></Button></form></CardContent></>}
         </Card>
       </div>
     </div>

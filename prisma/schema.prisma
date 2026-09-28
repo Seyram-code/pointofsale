@@ -298,6 +298,7 @@ model User {
   notifications   Notification[]
   supportTickets  SupportTicket[]
   supportMessages SupportTicketMessage[]
+  supportPresence SupportTicketPresence[]
   purchaseOrders  PurchaseOrder[]
   approvedReturns SaleReturn[]     @relation("ReturnApprover")
   createdReturns  SaleReturn[]     @relation("ReturnCreator")
@@ -958,6 +959,7 @@ model SupportTicket {
   store     Store                 @relation(fields: [storeId], references: [id], onDelete: Cascade)
   createdBy User                  @relation(fields: [createdById], references: [id], onDelete: Cascade)
   messages  SupportTicketMessage[]
+  presence  SupportTicketPresence[]
 
   @@index([storeId, status, updatedAt])
   @@index([status, priority, updatedAt])
@@ -974,6 +976,20 @@ model SupportTicketMessage {
   author User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
   @@index([ticketId, createdAt])
+}
+
+model SupportTicketPresence {
+  id        String   @id @default(cuid())
+  ticketId  String
+  userId    String
+  expiresAt DateTime
+  updatedAt DateTime @updatedAt
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([ticketId, userId])
+  @@index([ticketId, expiresAt])
 }
 
 /// Per-entity counters used to generate receipt / order / shift numbers safely.
