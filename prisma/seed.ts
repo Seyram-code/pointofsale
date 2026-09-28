@@ -96,9 +96,10 @@ async function main() {
 
   const adminPasswordHash = await bcrypt.hash(adminPassword, 12);
 
-  await prisma.user.upsert({
-    where: { email: adminEmail.toLowerCase() },
-    update: {
+  const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail.toLowerCase() } });
+  if (!existingAdmin) {
+    await prisma.user.create({
+      data: {
       storeId: store.id,
       staffCode: "ADM001",
       fullName: "System Administrator",
@@ -110,17 +111,8 @@ async function main() {
       failedLoginAttempts: 0,
       lockedUntil: null,
     },
-    create: {
-      storeId: store.id,
-      staffCode: "ADM001",
-      fullName: "System Administrator",
-      email: adminEmail.toLowerCase(),
-      passwordHash: adminPasswordHash,
-      role: "SUPER_ADMIN",
-      status: "ACTIVE",
-      mustChangePassword: true,
-    },
-  });
+    });
+  }
 
   await seedDemoUsers(store.id);
 
