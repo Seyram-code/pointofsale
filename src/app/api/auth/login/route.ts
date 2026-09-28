@@ -17,12 +17,13 @@ export async function POST(request: NextRequest) {
     const context = requestContext(request);
 
     const normalized = identifier.toLowerCase();
+    const normalizedStaffCode = identifier.replace(/\s+/g, "").toUpperCase();
     const user = await prisma.user.findFirst({
       where: {
         deletedAt: null,
         OR: [
           { email: normalized },
-          { staffCode: identifier.toUpperCase() },
+          { staffCode: normalizedStaffCode },
           { role: "ADMIN", store: { email: normalized } },
         ],
       },

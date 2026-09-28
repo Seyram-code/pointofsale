@@ -84,7 +84,7 @@ export function LoginForm() {
 
           <Input
             label="Email or staff code"
-            placeholder="owner or business email, or ADM001"
+            placeholder="Email or staff code, e.g. CSH0223"
             autoComplete="username"
             autoCapitalize="none"
             autoCorrect="off"
