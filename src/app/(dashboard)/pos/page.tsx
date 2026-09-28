@@ -6,7 +6,7 @@ import { isMockDriver } from "@/lib/payments/registry";
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "@/lib/payments/types";
 import { PosTerminal } from "@/components/pos/PosTerminal";
 
-export const metadata: Metadata = { title: "POS Sales" };
+export const metadata: Metadata = { title: "Make a Sale" };
 export const dynamic = "force-dynamic";
 
 const METHODS: PaymentMethod[] = ["CASH", "MOMO", "CARD_TERMINAL", "CARD"];

@@ -26,6 +26,19 @@ export async function holdSale(input: HoldSaleInput, context: SaleContext): Prom
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
       return await prisma.$transaction(async (tx) => {
+        if (input.customerId) {
+          const customer = await tx.customer.findFirst({
+            where: {
+              id: input.customerId,
+              storeId: context.storeId,
+              isActive: true,
+              deletedAt: null,
+            },
+            select: { id: true },
+          });
+          if (!customer) throw ApiError.notFound("Customer");
+        }
+
         let receiptNumber: string | null = null;
 
         if (input.resumeSaleId) {

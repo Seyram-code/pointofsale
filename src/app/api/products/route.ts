@@ -13,7 +13,8 @@ export async function POST(request: NextRequest) {
 
     const body = (await request.json()) as Record<string, unknown>;
     const name = typeof body.name === "string" ? body.name.trim() : "";
-    const sku = typeof body.sku === "string" ? body.sku.trim() : "";
+    const enteredSku = typeof body.sku === "string" ? body.sku.trim() : "";
+    const sku = enteredSku || `AUTO-${crypto.randomUUID()}`;
     const barcode = typeof body.barcode === "string" ? body.barcode.trim() : "";
     const costPrice = Number(body.costPrice);
     const sellingPrice = Number(body.sellingPrice);
@@ -22,7 +23,6 @@ export async function POST(request: NextRequest) {
 
     if (
       !name ||
-      !sku ||
       !Number.isFinite(costPrice) ||
       !Number.isFinite(sellingPrice) ||
       !Number.isFinite(quantity) ||
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
       quantity < 0 ||
       (expiryDate && Number.isNaN(expiryDate.getTime()))
     ) {
-      return fail("VALIDATION_ERROR", "Name, SKU, prices and a valid quantity are required.", 422);
+      return fail("VALIDATION_ERROR", "Name, prices and a valid quantity are required.", 422);
     }
 
     const product = await prisma.$transaction(async (tx) => {

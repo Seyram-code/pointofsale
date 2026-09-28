@@ -49,7 +49,14 @@ export function SupportTicketsView({ isSuperAdmin }: { isSuperAdmin: boolean }) 
   const [reply, setReply] = useState("");
   const [typingUsers, setTypingUsers] = useState<{ id: string; fullName: string }[]>([]);
   const toast = useToast();
-  const selected = tickets.find((ticket) => ticket.id === selectedId) ?? tickets[0];
+  const selected = selectedId ? tickets.find((ticket) => ticket.id === selectedId) ?? tickets[0] : null;
+
+  useEffect(() => {
+    if (!isSuperAdmin && selected?.status === "CLOSED") {
+      setSelectedId(null);
+      setReply("");
+    }
+  }, [isSuperAdmin, selected]);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,7 +69,11 @@ export function SupportTicketsView({ isSuperAdmin }: { isSuperAdmin: boolean }) 
         const result = await api.get<Ticket[]>("/support/tickets");
         if (cancelled) return;
         setTickets(result);
-        setSelectedId((current) => current && result.some((ticket) => ticket.id === current) ? current : result[0]?.id ?? null);
+        setSelectedId((current) => {
+          if (current && result.some((ticket) => ticket.id === current)) return current;
+          if (!current && !initial) return null;
+          return result[0]?.id ?? null;
+        });
       } catch (loadError) {
         if (initial && !cancelled) setError(loadError instanceof ApiClientError ? loadError.message : "Unable to load support tickets.");
       } finally {
@@ -121,6 +132,7 @@ export function SupportTicketsView({ isSuperAdmin }: { isSuperAdmin: boolean }) 
 
   async function createTicket(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     setBusy(true);
     setError("");
     try {
@@ -128,7 +140,7 @@ export function SupportTicketsView({ isSuperAdmin }: { isSuperAdmin: boolean }) 
       const ticket = await api.post<Ticket>("/support/tickets", input);
       setTickets((current) => [ticket, ...current]);
       setSelectedId(ticket.id);
-      event.currentTarget.reset();
+      form.reset();
       toast.success("Ticket submitted", "Super admins have been notified.");
     } catch (createError) {
       setError(createError instanceof ApiClientError ? createError.message : "Unable to submit the ticket.");
@@ -158,6 +170,10 @@ export function SupportTicketsView({ isSuperAdmin }: { isSuperAdmin: boolean }) 
     try {
       await api.patch(`/support/tickets/${selected.id}`, { status });
       setTickets((current) => current.map((ticket) => ticket.id === selected.id ? { ...ticket, status, updatedAt: new Date().toISOString() } : ticket));
+      if (status === "CLOSED") {
+        setSelectedId(null);
+        setReply("");
+      }
       toast.success("Ticket updated", `Status changed to ${statusLabels[status]}.`);
     } catch (statusError) {
       setError(statusError instanceof ApiClientError ? statusError.message : "Unable to update ticket status.");

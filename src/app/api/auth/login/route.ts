@@ -74,22 +74,22 @@ export async function POST(request: NextRequest) {
       throw new ApiError("FORBIDDEN", "Your subscription has expired. Renew it to continue using the shop.", 403);
     }
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { failedLoginAttempts: 0, lockedUntil: null, lastLoginAt: new Date() },
-    });
-
-    await createSession(user.id, { ...context, rememberDevice });
-
-    await recordAudit({
-      action: "LOGIN",
-      entity: "User",
-      entityId: user.id,
-      userId: user.id,
-      storeId: user.storeId,
-      summary: `${user.fullName} signed in`,
-      ...context,
-    });
+    await Promise.all([
+      prisma.user.update({
+        where: { id: user.id },
+        data: { failedLoginAttempts: 0, lockedUntil: null, lastLoginAt: new Date() },
+      }),
+      createSession(user.id, { ...context, rememberDevice }),
+      recordAudit({
+        action: "LOGIN",
+        entity: "User",
+        entityId: user.id,
+        userId: user.id,
+        storeId: user.storeId,
+        summary: `${user.fullName} signed in`,
+        ...context,
+      }),
+    ]);
 
     return ok({
       id: user.id,

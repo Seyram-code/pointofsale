@@ -5,6 +5,7 @@ import {
   ClipboardList,
   PackageMinus,
   Receipt,
+  ScanLine,
   ShoppingBasket,
   Smartphone,
   TrendingUp,
@@ -100,6 +101,15 @@ export function DashboardView({ user, data }: { user: SessionUser; data: Dashboa
       <PageHeader
         title={isRestaurant ? `Restaurant overview, ${user.fullName.split(" ")[0]}` : `Welcome back, ${user.fullName.split(" ")[0]}`}
         description={`${user.storeName ?? "No store assigned"} · ${formatDate(new Date(), "long")}`}
+        actions={
+          <Link
+            href="/pos"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            <ScanLine className="size-4" />
+            Make a Sale
+          </Link>
+        }
       />
 
       {!user.storeId && (
@@ -119,10 +129,6 @@ export function DashboardView({ user, data }: { user: SessionUser; data: Dashboa
 
       {isRestaurant && (
         <div className="mt-4 grid gap-3 sm:mt-6 sm:grid-cols-3">
-          <Link href="/pos" className="flex items-center gap-3 rounded-xl border border-line bg-card p-4 transition-colors hover:border-brand-400 hover:bg-muted">
-            <Receipt className="size-5 text-brand-600" />
-            <span><strong className="block text-sm text-fg">Open order screen</strong><span className="text-xs text-fg-muted">Start a customer order</span></span>
-          </Link>
           <Link href="/products" className="flex items-center gap-3 rounded-xl border border-line bg-card p-4 transition-colors hover:border-brand-400 hover:bg-muted">
             <ClipboardList className="size-5 text-brand-600" />
             <span><strong className="block text-sm text-fg">Manage menu</strong><span className="text-xs text-fg-muted">Update menu items and prices</span></span>

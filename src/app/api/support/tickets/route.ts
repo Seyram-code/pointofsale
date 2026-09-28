@@ -61,15 +61,19 @@ export async function POST(request: NextRequest) {
       select: { id: true },
     });
     if (admins.length > 0) {
-      await prisma.notification.createMany({
-        data: admins.map((admin) => ({
-          userId: admin.id,
-          storeId: session.user.storeId,
-          type: input.priority === "URGENT" || input.priority === "HIGH" ? "WARNING" as const : "INFO" as const,
-          title: `New support ticket: ${input.subject}`,
-          body: `${session.user.fullName} submitted a ${input.priority.toLowerCase()} priority ticket for ${ticket.store.name}.`,
-        })),
-      });
+      try {
+        await prisma.notification.createMany({
+          data: admins.map((admin) => ({
+            userId: admin.id,
+            storeId: session.user.storeId,
+            type: input.priority === "URGENT" || input.priority === "HIGH" ? "WARNING" as const : "INFO" as const,
+            title: `New support ticket: ${input.subject}`,
+            body: `${session.user.fullName} submitted a ${input.priority.toLowerCase()} priority ticket for ${ticket.store.name}.`,
+          })),
+        });
+      } catch (notificationError) {
+        console.error("[support] ticket submitted but admin notifications failed", notificationError);
+      }
     }
 
     return created(ticket);

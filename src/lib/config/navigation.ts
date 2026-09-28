@@ -61,7 +61,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "Total sales processed", href: "/platform/total-sales-processed", icon: BarChart3, role: "SUPER_ADMIN", primary: true },
       { label: "Payment revenue", href: "/platform/payment-revenue", icon: Receipt, role: "SUPER_ADMIN", primary: true },
       { label: "Subscription revenue", href: "/platform/subscription-revenue", icon: Repeat, role: "SUPER_ADMIN", primary: true },
-      { label: "POS Sales", href: "/pos", icon: ShoppingCart, permission: PERMISSIONS.POS_ACCESS, primary: true },
+      { label: "Make a Sale", href: "/pos", icon: ShoppingCart, permission: PERMISSIONS.POS_ACCESS, primary: true },
       { label: "Products", href: "/products", icon: Package, permission: PERMISSIONS.PRODUCTS_VIEW, primary: true },
       { label: "Inventory", href: "/inventory", icon: Boxes, permission: PERMISSIONS.INVENTORY_VIEW },
       { label: "Sales", href: "/sales", icon: Receipt, permission: PERMISSIONS.SALES_VIEW, primary: true },

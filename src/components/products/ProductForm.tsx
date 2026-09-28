@@ -49,7 +49,7 @@ export function ProductForm({ mode = "retail" }: { mode?: "retail" | "restaurant
         <CardHeader><CardTitle>{isRestaurant ? "Menu item details" : "Product details"}</CardTitle></CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
           <Input label={isRestaurant ? "Menu item name" : "Product name"} name="name" required placeholder={isRestaurant ? "e.g. Jollof rice" : "e.g. Milo 400g"} />
-          <Input label={isRestaurant ? "Item code" : "SKU"} name="sku" required placeholder={isRestaurant ? "e.g. JOLLOF-01" : "e.g. MILO-400"} />
+          <Input label={isRestaurant ? "Item code (optional)" : "SKU (optional)"} name="sku" placeholder={isRestaurant ? "e.g. JOLLOF-01" : "e.g. MILO-400"} />
           <Input label="Barcode" name="barcode" placeholder="Optional barcode" />
           <Input label={isRestaurant ? "Ingredient cost (GHS)" : "Cost price (GHS)"} name="costPrice" type="number" min="0" step="0.01" required placeholder="0.00" />
           <Input

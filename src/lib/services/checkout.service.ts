@@ -164,6 +164,19 @@ async function createPendingSale(input: CheckoutInput, context: SaleContext, car
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
       return await prisma.$transaction(async (tx) => {
+        if (input.customerId) {
+          const customer = await tx.customer.findFirst({
+            where: {
+              id: input.customerId,
+              storeId: context.storeId,
+              isActive: true,
+              deletedAt: null,
+            },
+            select: { id: true },
+          });
+          if (!customer) throw ApiError.notFound("Customer");
+        }
+
     let receiptNumber: string | null = null;
 
     if (input.resumeSaleId) {
@@ -343,14 +356,15 @@ export async function finalizeSale(saleId: string, context: SaleContext) {
     }
 
     if (sale.customerId) {
-      await tx.customer.update({
-        where: { id: sale.customerId },
+      const customerUpdate = await tx.customer.updateMany({
+        where: { id: sale.customerId, storeId: context.storeId },
         data: {
           totalSpent: { increment: DECIMAL_MONEY(total) },
           visitCount: { increment: 1 },
           lastVisitAt: completedAt,
         },
       });
+      if (customerUpdate.count !== 1) throw ApiError.notFound("Customer");
     }
 
     const byMethod = (method: string) =>
