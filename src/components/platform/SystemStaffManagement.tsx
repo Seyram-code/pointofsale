@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { KeyRound, Power, Save, Trash2, UserPlus } from "lucide-react";
+import { KeyRound, Power, Save, Trash2, UserPlus, X } from "lucide-react";
 import { api, ApiClientError } from "@/lib/api/client";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -27,6 +27,7 @@ export function SystemStaffManagement({ initialStaff = [] }: { initialStaff?: Sy
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [statusConfirmation, setStatusConfirmation] = useState<{ member: SystemStaff; disabled: boolean } | null>(null);
+  const [passwordResetFor, setPasswordResetFor] = useState<SystemStaff | null>(null);
   const toast = useToast();
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -48,14 +49,17 @@ export function SystemStaffManagement({ initialStaff = [] }: { initialStaff?: Sy
     }
   }
 
-  async function changePassword(member: SystemStaff) {
-    const password = window.prompt(`Enter a new password for ${member.fullName}:`);
-    if (!password) return;
+  async function changePassword(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!passwordResetFor) return;
+    const password = new FormData(event.currentTarget).get("password");
+    if (typeof password !== "string" || password.length < 6) return;
     setBusy(true);
     setError("");
     try {
-      await api.post(`/system-staff/${member.id}/password`, { password });
-      toast.success("Password updated", `${member.fullName} must use the new password at next sign-in.`);
+      await api.post(`/system-staff/${passwordResetFor.id}/password`, { password });
+      toast.success("Password updated", `${passwordResetFor.fullName} must use the new password at next sign-in.`);
+      setPasswordResetFor(null);
     } catch (actionError) {
       setError(actionError instanceof ApiClientError ? actionError.message : "Unable to update password.");
     } finally {
@@ -131,7 +135,7 @@ export function SystemStaffManagement({ initialStaff = [] }: { initialStaff?: Sy
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-sm">
                 <thead><tr className="border-b border-line bg-muted/60"><th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-fg-muted">Staff</th><th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-fg-muted">Code</th><th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-fg-muted">Status</th><th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-fg-muted">Last sign in</th><th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-fg-muted">Actions</th></tr></thead>
-                <tbody>{staff.map((member) => <tr key={member.id} className="border-b border-line last:border-0"><td className="px-4 py-3"><p className="font-medium text-fg">{member.fullName}</p><p className="text-xs text-fg-muted">{member.email}</p></td><td className="px-4 py-3 text-fg-secondary">{member.staffCode}</td><td className="px-4 py-3"><Badge variant={member.status === "ACTIVE" ? "success" : "neutral"} size="sm">{member.status}</Badge></td><td className="px-4 py-3 text-fg-secondary">{member.lastLoginAt ? new Date(member.lastLoginAt).toLocaleDateString("en-GB") : "Never"}</td><td className="px-4 py-3"><div className="flex justify-end gap-2"><Button size="sm" variant="outline" leftIcon={<KeyRound className="size-4" />} loading={busy} onClick={() => void changePassword(member)}>Change password</Button><Button size="sm" variant={member.status === "ACTIVE" ? "danger" : "success"} leftIcon={<Power className="size-4" />} loading={busy} onClick={() => void toggleStatus(member)}>{member.status === "ACTIVE" ? "Suspend" : "Enable"}</Button><Button size="icon" variant="ghost" aria-label={`Delete ${member.fullName}`} onClick={() => void deleteStaff(member)} disabled={busy}><Trash2 className="size-4 text-danger" /></Button></div></td></tr>)}</tbody>
+                <tbody>{staff.map((member) => <tr key={member.id} className="border-b border-line last:border-0"><td className="px-4 py-3"><p className="font-medium text-fg">{member.fullName}</p><p className="text-xs text-fg-muted">{member.email}</p></td><td className="px-4 py-3 text-fg-secondary">{member.staffCode}</td><td className="px-4 py-3"><Badge variant={member.status === "ACTIVE" ? "success" : "neutral"} size="sm">{member.status}</Badge></td><td className="px-4 py-3 text-fg-secondary">{member.lastLoginAt ? new Date(member.lastLoginAt).toLocaleDateString("en-GB") : "Never"}</td><td className="px-4 py-3"><div className="flex justify-end gap-2"><Button size="sm" variant="outline" leftIcon={<KeyRound className="size-4" />} loading={busy} onClick={() => { setError(""); setPasswordResetFor(member); }}>Change password</Button><Button size="sm" variant={member.status === "ACTIVE" ? "danger" : "success"} leftIcon={<Power className="size-4" />} loading={busy} onClick={() => void toggleStatus(member)}>{member.status === "ACTIVE" ? "Suspend" : "Enable"}</Button><Button size="icon" variant="ghost" aria-label={`Delete ${member.fullName}`} onClick={() => void deleteStaff(member)} disabled={busy}><Trash2 className="size-4 text-danger" /></Button></div></td></tr>)}</tbody>
               </table>
             </div>
           )}
@@ -148,6 +152,15 @@ export function SystemStaffManagement({ initialStaff = [] }: { initialStaff?: Sy
         onCancel={() => setStatusConfirmation(null)}
         onConfirm={() => void confirmStatusChange()}
       />
+
+      {passwordResetFor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="password-dialog-title">
+          <Card className="w-full max-w-md">
+            <CardHeader><div className="flex items-center justify-between"><CardTitle><span id="password-dialog-title">Change password</span></CardTitle><Button size="icon" variant="ghost" aria-label="Close" onClick={() => setPasswordResetFor(null)}><X className="size-4" /></Button></div></CardHeader>
+            <CardContent><p className="mb-4 text-sm text-fg-secondary">Enter a new password for <strong>{passwordResetFor.fullName}</strong>.</p><form onSubmit={changePassword} className="space-y-4"><Input label="New password" name="password" type="password" required minLength={6} autoFocus hint="At least 6 characters with upper, lower, number and symbol" />{error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-danger dark:bg-red-950/40">{error}</p>}<div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setPasswordResetFor(null)}>Cancel</Button><Button type="submit" loading={busy} leftIcon={<KeyRound className="size-4" />}>Update password</Button></div></form></CardContent>
+          </Card>
+        </div>
+      )}
     </>
   );
 }
