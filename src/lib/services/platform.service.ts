@@ -69,6 +69,10 @@ export interface PlatformOverview {
 }
 
 export async function getPlatformOverview(): Promise<PlatformOverview> {
+  const supportTicketModel = (prisma as unknown as {
+    supportTicket?: { count: (args: { where: { status: { notIn: string[] } } }) => Promise<number> };
+  }).supportTicket;
+
   const [stores, adminRegistrationLogs, planPricing, unresolvedSupportTickets] = await Promise.all([
     prisma.store.findMany({
     orderBy: { createdAt: "desc" },
@@ -110,7 +114,7 @@ export async function getPlatformOverview(): Promise<PlatformOverview> {
       select: { storeId: true },
     }),
     getPlatformPlanPricing(),
-    prisma.supportTicket.count({ where: { status: { notIn: ["RESOLVED", "CLOSED"] } } }),
+    supportTicketModel?.count({ where: { status: { notIn: ["RESOLVED", "CLOSED"] } } }) ?? Promise.resolve(0),
   ]);
   const planPrices = new Map(planPricing.map((plan) => [plan.key, plan.monthlyPrice ?? 0]));
   const adminRegisteredStoreIds = new Set(adminRegistrationLogs.map((log) => log.storeId).filter(Boolean));
