@@ -69,7 +69,7 @@ export interface PlatformOverview {
 }
 
 export async function getPlatformOverview(): Promise<PlatformOverview> {
-  const [stores, adminRegistrationLogs, planPricing] = await Promise.all([
+  const [stores, adminRegistrationLogs, planPricing, unresolvedSupportTickets] = await Promise.all([
     prisma.store.findMany({
     orderBy: { createdAt: "desc" },
     select: {
@@ -110,6 +110,7 @@ export async function getPlatformOverview(): Promise<PlatformOverview> {
       select: { storeId: true },
     }),
     getPlatformPlanPricing(),
+    prisma.supportTicket.count({ where: { status: { notIn: ["RESOLVED", "CLOSED"] } } }),
   ]);
   const planPrices = new Map(planPricing.map((plan) => [plan.key, plan.monthlyPrice ?? 0]));
   const adminRegisteredStoreIds = new Set(adminRegistrationLogs.map((log) => log.storeId).filter(Boolean));
@@ -211,6 +212,16 @@ export async function getPlatformOverview(): Promise<PlatformOverview> {
         createdAt: store.createdAt,
       });
     }
+  }
+
+  if (unresolvedSupportTickets > 0) {
+    notices.push({
+      id: "support-tickets-open",
+      title: `${unresolvedSupportTickets} support ticket${unresolvedSupportTickets === 1 ? "" : "s"} need attention`,
+      body: "Review the support inbox and respond to stores with open platform issues.",
+      severity: unresolvedSupportTickets >= 5 ? "danger" : "warning",
+      createdAt: new Date(),
+    });
   }
 
   const totals = {

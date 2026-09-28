@@ -21,6 +21,7 @@ import {
   Wallet,
   Repeat,
   FileWarning,
+  LifeBuoy,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { UserRole } from "@prisma/client";
@@ -47,6 +48,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, primary: true },
       { label: "Platform Dashboard", href: "/platform", icon: Shield, role: "SUPER_ADMIN", primary: true },
+      { label: "Support Tickets", href: "/platform/support", icon: LifeBuoy, role: "SUPER_ADMIN", primary: true },
       { label: "Total registered businesses", href: "/platform/total-registered-businesses", icon: Building2, role: "SUPER_ADMIN", primary: true },
       { label: "Active businesses", href: "/platform/active-businesses", icon: Store, role: "SUPER_ADMIN", primary: true },
       { label: "Trial businesses", href: "/platform/trial-businesses", icon: CalendarDays, role: "SUPER_ADMIN", primary: true },
@@ -70,6 +72,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "Returns", href: "/returns", icon: RotateCcw, permission: PERMISSIONS.RETURNS_VIEW },
       { label: "Settings", href: "/settings", icon: Settings, permission: PERMISSIONS.SETTINGS_VIEW },
       { label: "Subscription", href: "/subscription", icon: CreditCard },
+      { label: "Help & Support", href: "/support", icon: LifeBuoy },
     ],
   },
   {

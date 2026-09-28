@@ -160,6 +160,21 @@ enum NotificationType {
   ERROR
 }
 
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_FOR_USER
+  RESOLVED
+  CLOSED
+}
+
+enum SupportTicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
 // =========================== ORGANISATION ==================================
 
 model Store {
@@ -200,6 +215,7 @@ model Store {
   returns         SaleReturn[]
   settings        Setting[]
   subscriptions   StoreSubscription[]
+  supportTickets  SupportTicket[]
 
   @@index([isActive])
 }
@@ -280,6 +296,8 @@ model User {
   stockMovements  StockMovement[]
   auditLogs       AuditLog[]
   notifications   Notification[]
+  supportTickets  SupportTicket[]
+  supportMessages SupportTicketMessage[]
   purchaseOrders  PurchaseOrder[]
   approvedReturns SaleReturn[]     @relation("ReturnApprover")
   createdReturns  SaleReturn[]     @relation("ReturnCreator")
@@ -923,6 +941,39 @@ model Notification {
 
   @@index([userId, createdAt])
   @@index([storeId, createdAt])
+}
+
+model SupportTicket {
+  id          String                @id @default(cuid())
+  storeId     String
+  createdById String
+  subject     String
+  category    String
+  priority    SupportTicketPriority @default(NORMAL)
+  status      SupportTicketStatus   @default(OPEN)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  resolvedAt  DateTime?
+
+  store     Store                 @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdBy User                  @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  messages  SupportTicketMessage[]
+
+  @@index([storeId, status, updatedAt])
+  @@index([status, priority, updatedAt])
+}
+
+model SupportTicketMessage {
+  id        String   @id @default(cuid())
+  ticketId  String
+  authorId  String
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
 }
 
 /// Per-entity counters used to generate receipt / order / shift numbers safely.
