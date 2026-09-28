@@ -37,10 +37,12 @@ export function ProductGrid({ products, loading, onSelect }: ProductGridProps) {
           <button
             key={product.id}
             type="button"
+            disabled={outOfStock}
             onClick={() => onSelect(product)}
+            aria-label={outOfStock ? `${product.name}, out of stock` : `Add ${product.name} to cart`}
             className={cn(
               "flex min-w-0 flex-col overflow-hidden rounded-card border border-line bg-card text-left transition-colors",
-              "hover:border-brand-400 hover:bg-brand-50/50 active:bg-brand-50 dark:hover:bg-brand-950/40",
+              "hover:border-brand-400 hover:bg-brand-50/50 active:bg-brand-50 dark:hover:bg-brand-950/40 disabled:cursor-not-allowed disabled:hover:border-line disabled:hover:bg-card",
               outOfStock && "opacity-60",
             )}
           >

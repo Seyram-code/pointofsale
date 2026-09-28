@@ -195,10 +195,20 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockPayme
 
   const addProduct = useCallback(
     (product: PosProduct) => {
+      if (product.trackStock && product.stock <= 0) {
+        toast.error("Out of stock", `${product.name} cannot be added to the cart.`);
+        return;
+      }
+      const existingQuantity = cart.lines.find((line) => line.productId === product.id)?.quantity ?? 0;
+      if (product.trackStock && existingQuantity >= product.stock) {
+        toast.error("Stock limit reached", `Only ${product.stock} ${product.unitAbbreviation ?? "unit(s)"} of ${product.name} available.`);
+        return;
+      }
+
       cart.addLine(toCartLine(product));
       setSelectedProductId(product.id);
     },
-    [cart, toCartLine],
+    [cart, toast, toCartLine],
   );
 
   const scanBarcode = useCallback(

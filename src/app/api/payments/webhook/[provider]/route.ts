@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { fail, handleApiError, ok } from "@/lib/api/response";
 import { getPaymentProvider } from "@/lib/payments/registry";
-import { finalizeSale } from "@/lib/services/checkout.service";
+import { finalizeSale, releaseSaleStock } from "@/lib/services/checkout.service";
 import { recordAudit } from "@/lib/services/audit.service";
 import type { PaymentMethod } from "@/lib/payments/types";
 
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       });
     }
 
-    if (event.state === "SUCCESSFUL" && payment.sale.status !== "COMPLETED") {
+    if (event.state === "SUCCESSFUL" && payment.sale.status === "DRAFT") {
       await finalizeSale(payment.saleId, {
         storeId: payment.sale.storeId,
         cashierId: payment.sale.cashierId,
@@ -60,6 +60,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         entityId: payment.id,
         storeId: payment.sale.storeId,
         summary: `Payment confirmed by ${providerKey} webhook`,
+      });
+    }
+
+    if (event.state === "FAILED" || event.state === "CANCELLED") {
+      await releaseSaleStock(payment.saleId, {
+        storeId: payment.sale.storeId,
+        cashierId: payment.sale.cashierId,
       });
     }
 

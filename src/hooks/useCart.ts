@@ -39,11 +39,15 @@ export function useCart() {
   const addLine = useCallback((line: Omit<CartLine, "quantity">, quantity = 1) => {
     setLines((current) => {
       const index = current.findIndex((entry) => entry.productId === line.productId);
-      if (index === -1) return [...current, { ...line, quantity }];
+      const existingQuantity = index === -1 ? 0 : current[index].quantity;
+      const availableQuantity = line.trackStock ? Math.max(line.stock - existingQuantity, 0) : quantity;
+      const acceptedQuantity = line.trackStock ? Math.min(quantity, availableQuantity) : quantity;
+      if (acceptedQuantity <= 0) return current;
+      if (index === -1) return [...current, { ...line, quantity: acceptedQuantity }];
 
       // Repeat scans of the same barcode bump the existing line instead of duplicating it.
       const next = [...current];
-      next[index] = { ...next[index], quantity: next[index].quantity + quantity };
+      next[index] = { ...next[index], quantity: next[index].quantity + acceptedQuantity };
       return next;
     });
   }, []);
@@ -52,14 +56,27 @@ export function useCart() {
     setLines((current) =>
       quantity <= 0
         ? current.filter((line) => line.productId !== productId)
-        : current.map((line) => (line.productId === productId ? { ...line, quantity } : line)),
+        : current.map((line) =>
+            line.productId === productId
+              ? { ...line, quantity: line.trackStock ? Math.min(quantity, line.stock) : quantity }
+              : line,
+          ),
     );
   }, []);
 
   const adjustQuantity = useCallback((productId: string, delta: number) => {
     setLines((current) =>
       current
-        .map((line) => (line.productId === productId ? { ...line, quantity: line.quantity + delta } : line))
+        .map((line) =>
+          line.productId === productId
+            ? {
+                ...line,
+                quantity: line.trackStock
+                  ? Math.min(line.quantity + delta, line.stock)
+                  : line.quantity + delta,
+              }
+            : line,
+        )
         .filter((line) => line.quantity > 0),
     );
   }, []);

@@ -99,6 +99,7 @@ export async function checkout(input: CheckoutInput, context: SaleContext): Prom
 
   const failed = results.find((entry) => entry.result.state === "FAILED" || entry.result.state === "CANCELLED");
   if (failed || results.length !== paymentRows.length) {
+    await releaseSaleStock(saleId, context);
     return {
       saleId,
       receiptNumber,
@@ -218,6 +219,48 @@ async function createPendingSale(input: CheckoutInput, context: SaleContext, car
       select: { id: true, receiptNumber: true },
     });
 
+    for (const line of cart.lines) {
+      if (!line.trackStock) continue;
+
+      await tx.inventoryLevel.upsert({
+        where: { storeId_productId: { storeId: context.storeId, productId: line.productId } },
+        create: { storeId: context.storeId, productId: line.productId, quantity: DECIMAL_QTY(0) },
+        update: {},
+        select: { id: true },
+      });
+
+      const stockUpdate = await tx.inventoryLevel.updateMany({
+        where: {
+          storeId: context.storeId,
+          productId: line.productId,
+          quantity: { gte: DECIMAL_QTY(line.quantity) },
+        },
+        data: { quantity: { decrement: DECIMAL_QTY(line.quantity) } },
+      });
+      if (stockUpdate.count !== 1) {
+        throw ApiError.badRequest(`${line.name} has insufficient stock to complete this sale`);
+      }
+
+      const level = await tx.inventoryLevel.findUniqueOrThrow({
+        where: { storeId_productId: { storeId: context.storeId, productId: line.productId } },
+        select: { quantity: true },
+      });
+
+      await tx.stockMovement.create({
+        data: {
+          storeId: context.storeId,
+          productId: line.productId,
+          type: "SALE",
+          quantity: DECIMAL_QTY(-line.quantity),
+          balanceAfter: level.quantity,
+          unitCost: DECIMAL_MONEY(line.unitCost),
+          referenceType: "SALE_RESERVATION",
+          referenceId: sale.id,
+          performedById: context.cashierId,
+        },
+      });
+    }
+
     const paymentRows: Array<{ id: string; input: PaymentInput }> = [];
 
     for (const payment of input.payments) {
@@ -273,9 +316,57 @@ async function persistPaymentResults(results: Array<{ id: string; result: Paymen
   }
 }
 
+export async function releaseSaleStock(saleId: string, context: Pick<SaleContext, "storeId" | "cashierId">) {
+  await prisma.$transaction(async (tx) => {
+    const voided = await tx.sale.updateMany({
+      where: { id: saleId, storeId: context.storeId, status: "DRAFT" },
+      data: { status: "VOIDED" },
+    });
+    if (voided.count !== 1) return;
+
+    const claims = await tx.stockMovement.findMany({
+      where: { referenceType: "SALE_RESERVATION", referenceId: saleId },
+      select: { productId: true, quantity: true, unitCost: true },
+    });
+    const releases = new Map<string, { quantity: number; unitCost: Prisma.Decimal | null }>();
+    for (const claim of claims) {
+      const previous = releases.get(claim.productId);
+      releases.set(claim.productId, {
+        quantity: (previous?.quantity ?? 0) + Math.abs(Number(claim.quantity)),
+        unitCost: previous?.unitCost ?? claim.unitCost,
+      });
+    }
+
+    for (const [productId, release] of releases) {
+      await tx.inventoryLevel.update({
+        where: { storeId_productId: { storeId: context.storeId, productId } },
+        data: { quantity: { increment: DECIMAL_QTY(release.quantity) } },
+      });
+      const level = await tx.inventoryLevel.findUniqueOrThrow({
+        where: { storeId_productId: { storeId: context.storeId, productId } },
+        select: { quantity: true },
+      });
+      await tx.stockMovement.create({
+        data: {
+          storeId: context.storeId,
+          productId,
+          type: "ADJUSTMENT_IN",
+          quantity: DECIMAL_QTY(release.quantity),
+          balanceAfter: level.quantity,
+          unitCost: release.unitCost,
+          referenceType: "SALE_RESERVATION_RELEASE",
+          referenceId: saleId,
+          reason: "Failed or cancelled checkout",
+          performedById: context.cashierId,
+        },
+      });
+    }
+  });
+}
+
 /**
  * Runs everything that must happen once money is confirmed: complete the sale,
- * reduce inventory, write the ledger, update the customer, shift, daily report
+ * write the ledger, update the customer, shift, daily report
  * rollup, and issue the receipt — atomically.
  */
 export async function finalizeSale(saleId: string, context: SaleContext) {
@@ -286,7 +377,7 @@ export async function finalizeSale(saleId: string, context: SaleContext) {
     });
 
     if (!sale) throw ApiError.notFound("Sale");
-    if (sale.status === "COMPLETED") throw ApiError.conflict("This sale is already completed");
+    if (sale.status !== "DRAFT") throw ApiError.conflict("This sale is no longer pending");
 
     const successful = sale.payments.filter((payment) => payment.status === "SUCCESSFUL");
     const amountPaid = addMoney(...successful.map((payment) => Number(payment.amount)));
@@ -302,8 +393,8 @@ export async function finalizeSale(saleId: string, context: SaleContext) {
     const changeDue = Math.max(subtractMoney(tendered, total), 0);
     const completedAt = new Date();
 
-    await tx.sale.update({
-      where: { id: sale.id },
+    const completedSale = await tx.sale.updateMany({
+      where: { id: sale.id, storeId: context.storeId, status: "DRAFT" },
       data: {
         status: "COMPLETED",
         amountPaid: DECIMAL_MONEY(amountPaid),
@@ -311,6 +402,7 @@ export async function finalizeSale(saleId: string, context: SaleContext) {
         completedAt,
       },
     });
+    if (completedSale.count !== 1) throw ApiError.conflict("This sale is no longer pending");
 
     let costOfGoods = 0;
     let unitCount = 0;
@@ -320,39 +412,6 @@ export async function finalizeSale(saleId: string, context: SaleContext) {
       unitCount += quantity;
       costOfGoods += Number(item.unitCost) * quantity;
 
-      const product = await tx.product.findUnique({
-        where: { id: item.productId },
-        select: { trackStock: true },
-      });
-      if (!product?.trackStock) continue;
-
-      const level = await tx.inventoryLevel.upsert({
-        where: { storeId_productId: { storeId: context.storeId, productId: item.productId } },
-        create: { storeId: context.storeId, productId: item.productId, quantity: DECIMAL_QTY(0) },
-        update: {},
-        select: { quantity: true },
-      });
-
-      const balanceAfter = Number(level.quantity) - quantity;
-
-      await tx.inventoryLevel.update({
-        where: { storeId_productId: { storeId: context.storeId, productId: item.productId } },
-        data: { quantity: DECIMAL_QTY(balanceAfter) },
-      });
-
-      await tx.stockMovement.create({
-        data: {
-          storeId: context.storeId,
-          productId: item.productId,
-          type: "SALE",
-          quantity: DECIMAL_QTY(-quantity),
-          balanceAfter: DECIMAL_QTY(balanceAfter),
-          unitCost: item.unitCost,
-          referenceType: "SALE",
-          referenceId: sale.id,
-          performedById: context.cashierId,
-        },
-      });
     }
 
     if (sale.customerId) {
@@ -431,6 +490,9 @@ export async function refreshPaymentStatus(saleId: string, context: SaleContext)
   }
 
   const refreshed = await prisma.payment.findMany({ where: { saleId }, select: { id: true, method: true, status: true, amount: true } });
+  if (refreshed.some((payment) => payment.status === "FAILED" || payment.status === "CANCELLED")) {
+    await releaseSaleStock(saleId, context);
+  }
   const allSettled = refreshed.every((payment) => payment.status === "SUCCESSFUL");
 
   const base: CheckoutResult = {
