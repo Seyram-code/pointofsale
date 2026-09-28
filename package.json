@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
-    "hostinger:build": "prisma migrate deploy && npm run db:seed && npm run build",
     "postinstall": "prisma generate",
     "prestart": "prisma generate",
     "start": "next start",
