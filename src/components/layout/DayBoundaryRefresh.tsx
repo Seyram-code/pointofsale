@@ -7,15 +7,34 @@ export function DayBoundaryRefresh() {
   const router = useRouter();
 
   useEffect(() => {
+    let checking = false;
+
+    async function refreshIfAuthenticated() {
+      if (checking || document.visibilityState !== "visible") return;
+      checking = true;
+      try {
+        const response = await fetch("/api/auth/me", { credentials: "same-origin", cache: "no-store" });
+        if (response.status === 401) {
+          const next = `${window.location.pathname}${window.location.search}`;
+          window.location.replace(`/login?next=${encodeURIComponent(next)}`);
+          return;
+        }
+        if (response.ok) router.refresh();
+      } catch {
+      } finally {
+        checking = false;
+      }
+    }
+
     const now = new Date();
     const nextMidnight = new Date(now);
     nextMidnight.setUTCHours(24, 0, 0, 1000);
 
-    const refreshTimer = window.setTimeout(() => router.refresh(), nextMidnight.getTime() - now.getTime());
+    const refreshTimer = window.setTimeout(() => void refreshIfAuthenticated(), nextMidnight.getTime() - now.getTime());
     const refreshOnReturn = () => {
-      if (document.visibilityState === "visible") router.refresh();
+      void refreshIfAuthenticated();
     };
-    const interval = window.setInterval(() => router.refresh(), 30_000);
+    const interval = window.setInterval(() => void refreshIfAuthenticated(), 30_000);
 
     window.addEventListener("focus", refreshOnReturn);
     document.addEventListener("visibilitychange", refreshOnReturn);
