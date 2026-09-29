@@ -33,7 +33,7 @@ npm ci
 npm run build
 ```
 
-The `npm run build` script generates the Prisma client, applies pending database migrations, and then builds Next.js. Ensure Hostinger's `DATABASE_URL` is available to the build process and points to the production database.
+The `npm run build` script generates the Prisma client, checks for an imported MyPOS schema that has no Prisma migration history, applies pending database migrations, and then builds Next.js. For an existing imported database, the migration runner records the original schema as the baseline and recognizes support or tax schema changes already present. Ensure Hostinger's `DATABASE_URL` is available to the build process and points to the production database, and back up the database before deploying schema changes.
 
 Start command:
 
