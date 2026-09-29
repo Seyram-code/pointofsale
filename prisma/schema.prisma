@@ -446,6 +446,7 @@ model Product {
   priceHistory    PriceHistory[]
 
   @@unique([storeId, sku])
+  @@unique([storeId, name])
   @@index([storeId, isActive])
   @@index([categoryId])
   @@index([name])

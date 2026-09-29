@@ -23,6 +23,14 @@ function isSkuUniqueConflict(error: unknown) {
   return Array.isArray(target) ? target.includes("sku") : typeof target === "string" && target.toLowerCase().includes("sku");
 }
 
+function isProductNameUniqueConflict(error: unknown) {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") return false;
+  const target = error.meta?.target;
+  return Array.isArray(target)
+    ? target.includes("storeId") && target.includes("name")
+    : typeof target === "string" && target.toLowerCase().includes("name");
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await authorize(PERMISSIONS.PRODUCTS_CREATE);
@@ -49,6 +57,14 @@ export async function POST(request: NextRequest) {
       (expiryDate && Number.isNaN(expiryDate.getTime()))
     ) {
       return fail("VALIDATION_ERROR", "Name, prices and a valid quantity are required.", 422);
+    }
+
+    const existingProduct = await prisma.product.findFirst({
+      where: { storeId, name: { equals: name } },
+      select: { id: true },
+    });
+    if (existingProduct) {
+      return fail("CONFLICT", `A product named \"${name}\" has already been added.`, 409);
     }
 
     for (let attempt = 0; attempt < (enteredSku ? 1 : 5); attempt += 1) {
@@ -113,6 +129,9 @@ export async function POST(request: NextRequest) {
 
         return ok(product, undefined, 201);
       } catch (error) {
+        if (isProductNameUniqueConflict(error)) {
+          return fail("CONFLICT", `A product named \"${name}\" has already been added.`, 409);
+        }
         if (!enteredSku && isSkuUniqueConflict(error) && attempt < 4) continue;
         throw error;
       }

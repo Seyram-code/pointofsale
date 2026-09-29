@@ -85,7 +85,7 @@ export function handleApiError(error: unknown) {
     if (error.code === "P2003") return fail("CONFLICT", "Related record constraint failed", 409);
   }
   if (error instanceof Prisma.PrismaClientInitializationError) {
-    return fail("INTERNAL_ERROR", "Database unavailable. Start PostgreSQL and try again.", 503);
+    return fail("INTERNAL_ERROR", "Database unavailable. Check that MySQL is running and configured correctly.", 503);
   }
 
   console.error("[api] unhandled error", error);

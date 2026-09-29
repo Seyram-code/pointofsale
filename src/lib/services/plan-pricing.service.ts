@@ -10,7 +10,13 @@ export interface PlatformPlanPricing {
 }
 
 export async function getPlatformPlanPricing(): Promise<PlatformPlanPricing[]> {
-  const stored = await prisma.platformPlan.findMany();
+  let stored: Awaited<ReturnType<typeof prisma.platformPlan.findMany>> = [];
+  try {
+    stored = await prisma.platformPlan.findMany();
+  } catch {
+    console.warn("Unable to load stored platform plan pricing; using defaults.");
+    stored = [];
+  }
   const amounts = new Map(stored.map((plan) => [plan.key, plan.monthlyPrice === null ? null : Number(plan.monthlyPrice)]));
 
   return (Object.keys(SUBSCRIPTION_PLANS) as SubscriptionPlan[]).map((key) => {
