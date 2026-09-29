@@ -215,6 +215,7 @@ model Store {
   returns         SaleReturn[]
   settings        Setting[]
   subscriptions   StoreSubscription[]
+  taxRates        TaxRate[]
   supportTickets  SupportTicket[]
 
   @@index([isActive])
@@ -467,14 +468,20 @@ model Barcode {
 
 model TaxRate {
   id          String    @id @default(cuid())
-  name        String    @unique // "Standard VAT + NHIL + GETFund + COVID"
+  storeId     String
+  name        String
   rate        Decimal   @db.Decimal(6, 4) // 0.2150 for the combined Ghana rate
   description String?
   isDefault   Boolean   @default(false)
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  store    Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
   products    Product[]
+
+  @@unique([storeId, name])
+  @@index([storeId, isActive])
 }
 
 model PriceHistory {

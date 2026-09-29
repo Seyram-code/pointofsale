@@ -1,7 +1,6 @@
 import "server-only";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
-import { DEFAULT_TAX_RATE } from "@/lib/config/constants";
 
 export interface PosProduct {
   id: string;
@@ -41,7 +40,7 @@ const productSelect = {
 
 type ProductRow = Prisma.ProductGetPayload<{ select: typeof productSelect }>;
 
-function toPosProduct(row: ProductRow): PosProduct {
+function toPosProduct(row: ProductRow, defaultTaxRate: number): PosProduct {
   return {
     id: row.id,
     sku: row.sku,
@@ -49,7 +48,7 @@ function toPosProduct(row: ProductRow): PosProduct {
     imageUrl: row.imageUrl,
     unitPrice: Number(row.sellingPrice),
     costPrice: Number(row.costPrice),
-    taxRate: row.taxRate ? Number(row.taxRate.rate) : DEFAULT_TAX_RATE,
+    taxRate: row.taxRate ? Number(row.taxRate.rate) : defaultTaxRate,
     isVatInclusive: row.isVatInclusive,
     type: row.type,
     unitAbbreviation: row.unit?.abbreviation ?? null,
@@ -67,7 +66,7 @@ export async function searchProducts(
 ): Promise<PosProduct[]> {
   const term = options.q?.trim();
 
-  const rows = await prisma.product.findMany({
+  const [rows, defaultTaxRate] = await Promise.all([prisma.product.findMany({
     where: {
       storeId,
       isActive: true,
@@ -86,16 +85,16 @@ export async function searchProducts(
     select: { ...productSelect, inventoryLevels: { where: { storeId }, take: 1, select: { quantity: true } } },
     orderBy: { name: "asc" },
     take: options.limit,
-  });
+  }), prisma.taxRate.findFirst({ where: { storeId, isDefault: true, isActive: true }, select: { rate: true } })]);
 
-  return rows.map(toPosProduct);
+  return rows.map((row) => toPosProduct(row, defaultTaxRate ? Number(defaultTaxRate.rate) : 0));
 }
 
 /** Exact-match lookup used by the barcode scanner; falls back to SKU. */
 export async function findProductByBarcode(storeId: string, code: string): Promise<PosProduct | null> {
   const trimmed = code.trim();
 
-  const row = await prisma.product.findFirst({
+  const [row, defaultTaxRate] = await Promise.all([prisma.product.findFirst({
     where: {
       storeId,
       isActive: true,
@@ -103,9 +102,9 @@ export async function findProductByBarcode(storeId: string, code: string): Promi
       OR: [{ barcodes: { some: { code: trimmed } } }, { sku: trimmed }],
     },
     select: { ...productSelect, inventoryLevels: { where: { storeId }, take: 1, select: { quantity: true } } },
-  });
+  }), prisma.taxRate.findFirst({ where: { storeId, isDefault: true, isActive: true }, select: { rate: true } })]);
 
-  return row ? toPosProduct(row) : null;
+  return row ? toPosProduct(row, defaultTaxRate ? Number(defaultTaxRate.rate) : 0) : null;
 }
 
 export async function listPosCategories(storeId: string) {

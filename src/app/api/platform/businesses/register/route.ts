@@ -58,6 +58,12 @@ export async function POST(request: NextRequest) {
         },
         select: { id: true, businessId: true, name: true },
       });
+      await tx.taxRate.createMany({
+        data: [
+          { storeId: store.id, name: "Ghana Standard (VAT + Levies)", rate: 0.21, description: "VAT 15% + NHIL 2.5% + GETFund 2.5% + COVID-19 Levy 1%", isDefault: true },
+          { storeId: store.id, name: "Zero Rated", rate: 0, description: "Exempt / zero-rated goods" },
+        ],
+      });
       const staffCode = await nextShortNumber(tx, store.id, "STAFF_ADMIN", "ADM");
       const owner = await tx.user.create({
         data: {

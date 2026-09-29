@@ -9,6 +9,7 @@ import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { useToast } from "@/components/ui/Toast";
 import { api, ApiClientError } from "@/lib/api/client";
+import { formatQuantity } from "@/lib/utils/format";
 
 export interface InventoryProductOption {
   id: string;
@@ -111,6 +112,11 @@ export function InventoryDialog({ products, mode, open, onClose, onSaved }: Inve
           }}
           options={products.map((product) => ({ value: product.id, label: `${product.name} · ${product.sku}` }))}
         />
+        {isReceive && (
+          <p className="-mt-2 text-sm text-fg-muted">
+            Available now: <span className="font-semibold tabular text-fg">{formatQuantity(selected?.quantity ?? 0)}</span>
+          </p>
+        )}
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Input

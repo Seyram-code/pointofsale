@@ -3,10 +3,14 @@
 import { useEffect } from "react";
 
 const CHECK_INTERVAL_MS = 60_000;
+const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000;
+const ACTIVITY_EVENTS = ["pointerdown", "pointermove", "keydown", "click", "scroll", "touchstart", "wheel"] as const;
 
 export function SessionExpiryGuard() {
   useEffect(() => {
     let checking = false;
+    let timeoutId: number | undefined;
+    let loggingOut = false;
 
     async function checkSession() {
       if (checking || document.visibilityState !== "visible") return;
@@ -26,14 +30,49 @@ export function SessionExpiryGuard() {
       }
     }
 
+    async function logoutAndRedirect() {
+      if (loggingOut) return;
+      loggingOut = true;
+
+      try {
+        await fetch("/api/auth/logout", {
+          method: "POST",
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+      } catch {
+      }
+
+      const next = `${window.location.pathname}${window.location.search}`;
+      window.location.replace(`/login?next=${encodeURIComponent(next)}&expired=1`);
+    }
+
+    function resetInactivityTimer() {
+      if (timeoutId) window.clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(() => {
+        void logoutAndRedirect();
+      }, INACTIVITY_TIMEOUT_MS);
+    }
+
     const interval = window.setInterval(() => void checkSession(), CHECK_INTERVAL_MS);
+    const handleActivity = () => resetInactivityTimer();
+
     window.addEventListener("focus", checkSession);
     document.addEventListener("visibilitychange", checkSession);
+    for (const eventName of ACTIVITY_EVENTS) {
+      window.addEventListener(eventName, handleActivity, { passive: true });
+    }
+
+    resetInactivityTimer();
 
     return () => {
       window.clearInterval(interval);
+      if (timeoutId) window.clearTimeout(timeoutId);
       window.removeEventListener("focus", checkSession);
       document.removeEventListener("visibilitychange", checkSession);
+      for (const eventName of ACTIVITY_EVENTS) {
+        window.removeEventListener(eventName, handleActivity);
+      }
     };
   }, []);
 

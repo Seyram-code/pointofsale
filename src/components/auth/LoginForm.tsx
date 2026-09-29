@@ -17,6 +17,7 @@ export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = searchParams.get("next") ?? "/dashboard";
+  const expiredSession = searchParams.get("expired") === "1";
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -79,6 +80,16 @@ export function LoginForm() {
             >
               <AlertCircle className="mt-0.5 size-4 shrink-0" />
               <span>{formError}</span>
+            </div>
+          )}
+
+          {expiredSession && (
+            <div
+              role="alert"
+              aria-live="polite"
+              className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100"
+            >
+              Your session expired after 5 minutes of inactivity. Please sign in again.
             </div>
           )}
 

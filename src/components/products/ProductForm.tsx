@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Save } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -15,10 +15,20 @@ export function ProductForm({ mode = "retail" }: { mode?: "retail" | "restaurant
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [sellingPrice, setSellingPrice] = useState("");
+  const [taxRate, setTaxRate] = useState(DEFAULT_TAX_RATE);
   const toast = useToast();
   const preTaxPrice = Number(sellingPrice) || 0;
-  const taxAmount = Math.round(preTaxPrice * DEFAULT_TAX_RATE * 100) / 100;
+  const taxAmount = Math.round(preTaxPrice * taxRate * 100) / 100;
   const finalPrice = Math.round((preTaxPrice + taxAmount) * 100) / 100;
+
+  useEffect(() => {
+    api.get<Array<{ rate: number; isDefault: boolean; isActive: boolean }>>("/settings/tax-rates")
+      .then((rates) => {
+        const defaultRate = rates.find((rate) => rate.isDefault && rate.isActive);
+        if (defaultRate) setTaxRate(defaultRate.rate);
+      })
+      .catch(() => undefined);
+  }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -62,7 +72,7 @@ export function ProductForm({ mode = "retail" }: { mode?: "retail" | "restaurant
             placeholder="0.00"
             value={sellingPrice}
             onChange={(event) => setSellingPrice(event.target.value)}
-            hint={`Tax (${(DEFAULT_TAX_RATE * 100).toFixed(0)}%): GHS ${taxAmount.toFixed(2)}`}
+            hint={`Tax (${(taxRate * 100).toFixed(2)}%): GHS ${taxAmount.toFixed(2)}`}
           />
           <div className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-2.5 dark:border-brand-900 dark:bg-brand-950/30">
             <p className="text-xs font-medium text-fg-muted">Final checkout price</p>

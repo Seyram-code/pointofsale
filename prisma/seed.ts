@@ -42,9 +42,10 @@ async function main() {
   });
 
   await prisma.taxRate.upsert({
-    where: { name: "Ghana Standard (VAT + Levies)" },
+    where: { storeId_name: { storeId: store.id, name: "Ghana Standard (VAT + Levies)" } },
     update: {},
     create: {
+      storeId: store.id,
       name: "Ghana Standard (VAT + Levies)",
       rate: 0.21,
       description: "VAT 15% + NHIL 2.5% + GETFund 2.5% + COVID-19 Levy 1%",
@@ -53,9 +54,9 @@ async function main() {
   });
 
   await prisma.taxRate.upsert({
-    where: { name: "Zero Rated" },
+    where: { storeId_name: { storeId: store.id, name: "Zero Rated" } },
     update: {},
-    create: { name: "Zero Rated", rate: 0, description: "Exempt / zero-rated goods" },
+    create: { storeId: store.id, name: "Zero Rated", rate: 0, description: "Exempt / zero-rated goods" },
   });
 
   const units = [

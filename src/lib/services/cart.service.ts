@@ -3,7 +3,6 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError } from "@/lib/api/response";
 import { computeCartTotals, type CartTotals, type LineTotals } from "@/lib/services/pricing";
-import { DEFAULT_TAX_RATE } from "@/lib/config/constants";
 import type { CartItemInput, CartDiscountInput } from "@/lib/validations/sale.schema";
 
 export const DECIMAL_QTY = (value: number) => new Prisma.Decimal(value.toFixed(3));
@@ -43,20 +42,23 @@ export async function priceCart(
 ): Promise<PricedCart> {
   const ids = items.map((item) => item.productId);
 
-  const products = await prisma.product.findMany({
-    where: { id: { in: ids }, storeId, deletedAt: null },
-    select: {
-      id: true,
-      sku: true,
-      name: true,
-      sellingPrice: true,
-      costPrice: true,
-      isVatInclusive: true,
-      trackStock: true,
-      taxRate: { select: { rate: true } },
-      barcodes: { where: { isPrimary: true }, take: 1, select: { code: true } },
-    },
-  });
+  const [products, defaultTaxRate] = await Promise.all([
+    prisma.product.findMany({
+      where: { id: { in: ids }, storeId, deletedAt: null },
+      select: {
+        id: true,
+        sku: true,
+        name: true,
+        sellingPrice: true,
+        costPrice: true,
+        isVatInclusive: true,
+        trackStock: true,
+        taxRate: { select: { rate: true } },
+        barcodes: { where: { isPrimary: true }, take: 1, select: { code: true } },
+      },
+    }),
+    prisma.taxRate.findFirst({ where: { storeId, isDefault: true, isActive: true }, select: { rate: true } }),
+  ]);
 
   if (products.length !== new Set(ids).size) {
     throw ApiError.badRequest("Some products in the cart are no longer available");
@@ -72,7 +74,7 @@ export async function priceCart(
       product,
       unitPrice: override ?? Number(product.sellingPrice),
       overridden: override !== undefined,
-      taxRate: product.taxRate ? Number(product.taxRate.rate) : DEFAULT_TAX_RATE,
+      taxRate: product.taxRate ? Number(product.taxRate.rate) : (defaultTaxRate ? Number(defaultTaxRate.rate) : 0),
     };
   });
 
