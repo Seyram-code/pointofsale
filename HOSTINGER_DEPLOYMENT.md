@@ -30,10 +30,10 @@ Build command:
 
 ```bash
 npm ci
-npx prisma generate
-npx prisma migrate deploy
 npm run build
 ```
+
+The `npm run build` script generates the Prisma client, applies pending database migrations, and then builds Next.js. Ensure Hostinger's `DATABASE_URL` is available to the build process and points to the production database.
 
 Start command:
 
