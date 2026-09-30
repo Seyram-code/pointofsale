@@ -21,6 +21,24 @@ export async function PATCH(request: NextRequest, { params }: Context) {
     const sellingPrice = Number(body.sellingPrice);
     if (!name || !sku || !Number.isFinite(costPrice) || !Number.isFinite(sellingPrice) || costPrice < 0 || sellingPrice < 0) throw ApiError.badRequest("Name, SKU and valid prices are required");
 
+    if (barcode) {
+      const existingBarcode = await prisma.barcode.findFirst({
+        where: {
+          code: barcode,
+          product: { storeId },
+          productId: { not: id },
+        },
+        select: {
+          code: true,
+          product: { select: { name: true } },
+        },
+      });
+
+      if (existingBarcode) {
+        throw ApiError.conflict(`Barcode "${existingBarcode.code}" is already assigned to product "${existingBarcode.product.name}".`);
+      }
+    }
+
     await prisma.$transaction(async (tx) => {
       const product = await tx.product.findFirst({ where: { id, storeId, deletedAt: null }, select: { id: true } });
       if (!product) throw ApiError.notFound("Product");

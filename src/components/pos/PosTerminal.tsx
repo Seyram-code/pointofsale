@@ -361,6 +361,12 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockPayme
       {/* Catalogue */}
       <section className="flex min-h-0 flex-1 flex-col gap-3">
         <div className="flex flex-col gap-2 sm:flex-row">
+          <SearchInput
+            ref={searchRef}
+            placeholder="Search products (F2)"
+            onSearch={setQuery}
+            className="flex-1"
+          />
           <Input
             ref={barcodeRef}
             value={barcode}
@@ -376,12 +382,6 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockPayme
               event.preventDefault();
               void scanBarcode(barcode);
             }}
-          />
-          <SearchInput
-            ref={searchRef}
-            placeholder="Search products (F2)"
-            onSearch={setQuery}
-            className="flex-1"
           />
           <button
             type="button"

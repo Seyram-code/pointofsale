@@ -107,7 +107,7 @@ export function CameraBarcodeScanner({ open, onClose, onDetected }: CameraBarcod
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4">
       <div className="w-full max-w-md overflow-hidden rounded-2xl bg-card shadow-[var(--shadow-panel)]">
         <div className="flex items-center gap-3 border-b border-line px-4 py-3">
           <Camera className="size-5 text-brand-600" />

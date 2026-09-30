@@ -1,10 +1,11 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { Save } from "lucide-react";
+import { Camera, Save } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { CameraBarcodeScanner } from "@/components/pos/CameraBarcodeScanner";
 import { api } from "@/lib/api/client";
 import type { PosProduct } from "@/lib/services/product.service";
 
@@ -18,6 +19,7 @@ interface ProductEditDialogProps {
 export function ProductEditDialog({ product, open, onClose, onSaved }: ProductEditDialogProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [cameraScannerOpen, setCameraScannerOpen] = useState(false);
   const [values, setValues] = useState({ name: "", sku: "", barcode: "", costPrice: "", sellingPrice: "" });
 
   useEffect(() => {
@@ -42,21 +44,46 @@ export function ProductEditDialog({ product, open, onClose, onSaved }: ProductEd
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Edit product" size="sm" closeOnBackdrop={!saving}>
-      <form onSubmit={submit} className="space-y-4">
-        <Input label="Product name" value={values.name} required onChange={(event) => setValues({ ...values, name: event.target.value })} />
-        <Input label="SKU" value={values.sku} required onChange={(event) => setValues({ ...values, sku: event.target.value })} />
-        <Input label="Barcode" value={values.barcode} onChange={(event) => setValues({ ...values, barcode: event.target.value })} />
-        <div className="grid grid-cols-2 gap-3">
-          <Input label="Cost price" type="number" min="0" step="0.01" value={values.costPrice} required onChange={(event) => setValues({ ...values, costPrice: event.target.value })} />
-          <Input label="Selling price" type="number" min="0" step="0.01" value={values.sellingPrice} required onChange={(event) => setValues({ ...values, sellingPrice: event.target.value })} />
-        </div>
-        {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-danger dark:bg-red-950/40">{error}</p>}
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button type="submit" loading={saving} leftIcon={<Save className="size-4" />}>Save changes</Button>
-        </div>
-      </form>
-    </Modal>
+    <>
+      <Modal open={open} onClose={onClose} title="Edit product" size="sm" closeOnBackdrop={!saving}>
+        <form onSubmit={submit} className="space-y-4">
+          <Input label="Product name" value={values.name} required onChange={(event) => setValues({ ...values, name: event.target.value })} />
+          <Input label="SKU" value={values.sku} required onChange={(event) => setValues({ ...values, sku: event.target.value })} />
+          <Input
+            label="Barcode"
+            value={values.barcode}
+            onChange={(event) => setValues({ ...values, barcode: event.target.value })}
+            rightSlot={
+              <button
+                type="button"
+                onClick={() => setCameraScannerOpen(true)}
+                aria-label="Scan barcode with camera"
+                className="flex items-center justify-center rounded-md p-1 text-fg-muted transition hover:text-fg"
+              >
+                <Camera className="size-4" />
+              </button>
+            }
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Cost price" type="number" min="0" step="0.01" value={values.costPrice} required onChange={(event) => setValues({ ...values, costPrice: event.target.value })} />
+            <Input label="Selling price" type="number" min="0" step="0.01" value={values.sellingPrice} required onChange={(event) => setValues({ ...values, sellingPrice: event.target.value })} />
+          </div>
+          {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-danger dark:bg-red-950/40">{error}</p>}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+            <Button type="submit" loading={saving} leftIcon={<Save className="size-4" />}>Save changes</Button>
+          </div>
+        </form>
+      </Modal>
+
+      <CameraBarcodeScanner
+        open={cameraScannerOpen}
+        onClose={() => setCameraScannerOpen(false)}
+        onDetected={(code) => {
+          setValues((current) => ({ ...current, barcode: code }));
+          setCameraScannerOpen(false);
+        }}
+      />
+    </>
   );
 }

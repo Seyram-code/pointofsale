@@ -31,6 +31,24 @@ function isProductNameUniqueConflict(error: unknown) {
     : typeof target === "string" && target.toLowerCase().includes("name");
 }
 
+async function findDuplicateBarcodeInStore(storeId: string, barcode: string, ignoreProductId?: string) {
+  if (!barcode) return null;
+
+  const match = await prisma.barcode.findFirst({
+    where: {
+      code: barcode,
+      product: { storeId },
+      ...(ignoreProductId ? { productId: { not: ignoreProductId } } : {}),
+    },
+    select: {
+      code: true,
+      product: { select: { id: true, name: true } },
+    },
+  });
+
+  return match;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await authorize(PERMISSIONS.PRODUCTS_CREATE);
@@ -65,6 +83,11 @@ export async function POST(request: NextRequest) {
     });
     if (existingProduct) {
       return fail("CONFLICT", `A product named \"${name}\" has already been added.`, 409);
+    }
+
+    const duplicateBarcode = await findDuplicateBarcodeInStore(storeId, barcode);
+    if (duplicateBarcode) {
+      return fail("CONFLICT", `Barcode \"${duplicateBarcode.code}\" is already assigned to product \"${duplicateBarcode.product.name}\".`, 409);
     }
 
     for (let attempt = 0; attempt < (enteredSku ? 1 : 5); attempt += 1) {
