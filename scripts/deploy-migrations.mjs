@@ -9,10 +9,11 @@ const SUPPORT_TICKETS = "20260928090000_add_support_tickets";
 const SUPPORT_PRESENCE = "20260928110000_add_support_typing_presence";
 const SUPPORT_READ_AT = "20260928130000_add_support_message_read_at";
 const STORE_TAX_RATES = "20260929150000_store_specific_tax_rates";
+const UNIQUE_PRODUCT_NAME = "20260930100000_unique_product_name_per_store";
 let connection;
 
-async function query(sql) {
-  const [rows] = await connection.query(sql);
+async function query(sql, values) {
+  const [rows] = await connection.query(sql, values);
   return rows;
 }
 
@@ -90,6 +91,34 @@ async function reconcileImportedTaxSchema(tables, applied) {
   if (!applied.has(STORE_TAX_RATES)) resolveMigration(STORE_TAX_RATES);
 }
 
+async function reconcileProductNameMigration(tables) {
+  if (!tables.has("Product")) return;
+
+  const indexes = await query("SELECT INDEX_NAME AS indexName FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Product' AND INDEX_NAME = 'Product_storeId_name_key'");
+  const hasUniqueIndex = indexes.length > 0;
+  const migrationRows = tables.has("_prisma_migrations")
+    ? await query("SELECT finished_at AS finishedAt, rolled_back_at AS rolledBackAt FROM _prisma_migrations WHERE migration_name = ?", [UNIQUE_PRODUCT_NAME])
+    : [];
+  const hasSuccessfulMigration = migrationRows.some((row) => row.finishedAt && !row.rolledBackAt);
+  const hasUnresolvedFailure = migrationRows.some((row) => !row.finishedAt && !row.rolledBackAt);
+
+  if (hasUniqueIndex) {
+    if (!hasSuccessfulMigration) resolveMigration(UNIQUE_PRODUCT_NAME);
+    return;
+  }
+
+  if (hasSuccessfulMigration) {
+    throw new Error(`The ${UNIQUE_PRODUCT_NAME} migration is marked successful, but Product_storeId_name_key is missing. Inspect production schema and migration history before deploying.`);
+  }
+
+  const duplicates = await query("SELECT storeId, name, COUNT(*) AS duplicateCount FROM Product GROUP BY storeId, name HAVING COUNT(*) > 1 LIMIT 20");
+  if (duplicates.length > 0) {
+    throw new Error(`Cannot apply ${UNIQUE_PRODUCT_NAME}: duplicate product names exist in production. Resolve these rows before redeploying: ${JSON.stringify(duplicates)}`);
+  }
+
+  if (hasUnresolvedFailure) resolveMigration(UNIQUE_PRODUCT_NAME, "rolled-back");
+}
+
 async function main() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL is required to deploy database migrations.");
@@ -130,6 +159,7 @@ async function main() {
   const currentApplied = await getAppliedMigrations(tables);
   await reconcileImportedSupportSchema(tables, currentApplied);
   await reconcileImportedTaxSchema(tables, currentApplied);
+  await reconcileProductNameMigration(tables);
   deployMigrations();
 }
 
