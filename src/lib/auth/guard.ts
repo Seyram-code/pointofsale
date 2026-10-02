@@ -2,6 +2,7 @@ import "server-only";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { hasAnyPermission, hasPermission, type Permission } from "@/lib/auth/permissions";
+import { hasSubscriptionAccess } from "@/lib/services/subscription.service";
 import type { AuthenticatedSession } from "@/lib/auth/types";
 
 export class UnauthorizedError extends Error {
@@ -55,12 +56,21 @@ export async function requirePermission(
 /** For route handlers — throws instead of redirecting so the API can return JSON. */
 export async function authorize(
   permission?: Permission | Permission[],
-  options: { any?: boolean } = {},
+  options: { any?: boolean; allowExpiredSubscription?: boolean } = {},
 ): Promise<AuthenticatedSession> {
   const session = await getSession();
   if (!session) throw new UnauthorizedError();
   if (!session.user.storeId) throw new ForbiddenError("This account is not linked to a business store");
   if (!session.user.businessId) throw new ForbiddenError("This account is not linked to a business");
+  // Block business APIs for expired shops, but let the renewal endpoints opt out so the
+  // owner can pay and restore access. Super admins are never gated.
+  if (
+    !options.allowExpiredSubscription &&
+    session.user.role !== "SUPER_ADMIN" &&
+    !(await hasSubscriptionAccess(session.user.storeId))
+  ) {
+    throw new ForbiddenError("Your subscription has expired. Renew it to continue using the shop.");
+  }
   if (!permission) return session;
 
   const list = Array.isArray(permission) ? permission : [permission];

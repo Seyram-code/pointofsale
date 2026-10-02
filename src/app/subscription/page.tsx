@@ -11,23 +11,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PlatformFeatureChecklist } from "@/components/platform/PlatformFeatureChecklist";
 import { getPlatformPlanPricing } from "@/lib/services/plan-pricing.service";
+import { getSubscriptionPlan, normalizePlanKey, SELECTABLE_PLAN_KEYS, type SubscriptionPlan } from "@/lib/config/subscription-plans";
 
 export const metadata: Metadata = { title: "Subscription" };
 export const dynamic = "force-dynamic";
-
-const PLAN_DETAILS: Record<string, { name: string; price: string; description: string }> = {
-  STARTER: { name: "Starter", price: "GHS 99 / month", description: "Core POS tools for small shops." },
-  GROWTH: { name: "Growth", price: "GHS 199 / month", description: "More tills, staff and reporting for growing supermarkets." },
-  ENTERPRISE: { name: "Enterprise", price: "Custom pricing", description: "Designed for larger and multi-branch operations." },
-};
 
 export default async function SubscriptionPage() {
   const session = await requireSession("/subscription");
   if (!session.user.storeId) redirect("/forbidden");
   const subscription = await prisma.storeSubscription.findFirst({ where: { storeId: session.user.storeId }, orderBy: { createdAt: "desc" }, include: { store: { select: { phone: true } } } });
   const pricing = await getPlatformPlanPricing();
-  const plan = subscription ? PLAN_DETAILS[subscription.plan] ?? PLAN_DETAILS.STARTER : null;
-  const livePrice = subscription ? pricing.find((item) => item.key === subscription.plan)?.priceLabel ?? plan?.price : plan?.price;
+  const currentPlanKey = subscription ? normalizePlanKey(subscription.plan) : null;
+  // Trial is granted at sign-up by the platform, not bought, so it is never offered here.
+  const selectablePlans = pricing.filter((item) => SELECTABLE_PLAN_KEYS.includes(item.key as SubscriptionPlan));
+  const plan = currentPlanKey ? getSubscriptionPlan(currentPlanKey) : null;
+  const livePrice = subscription ? pricing.find((item) => item.key === currentPlanKey)?.priceLabel ?? plan?.price : plan?.price;
   const now = new Date();
   const expired = subscription ? subscription.currentPeriodEnd < now && subscription.status !== "CANCELED" : false;
   const status = expired ? "EXPIRED" : subscription?.status ?? "EXPIRED";
@@ -48,7 +46,7 @@ export default async function SubscriptionPage() {
           <p className="text-xs text-fg-muted">{expired ? "This shop is blocked until an active renewal is paid for." : `Access remains active until ${accessEnd.toLocaleDateString("en-GH")}.`}</p>
         </div><div className="mt-6 grid gap-3 text-sm sm:grid-cols-2"><div className="flex items-center gap-2 text-fg-secondary"><CalendarDays className="size-4" />Access until {accessEnd.toLocaleDateString("en-GH")}</div><div className="flex items-center gap-2 text-fg-secondary"><ShieldCheck className="size-4" />{subscription.provider ? `Billing via ${subscription.provider}` : "Billing provider setup pending"}</div></div></> : <p className="text-sm text-fg-muted">No subscription is configured for this portal.</p>}
       </CardContent></Card>
-      <Card><CardHeader><CardTitle>{status === "TRIALING" ? "Choose your plan" : "Update your plan"}</CardTitle></CardHeader><CardContent>{subscription && (status === "TRIALING" || status === "ACTIVE") ? <SubscriptionManager currentPlan={subscription.plan} plans={pricing} paymentPhone={subscription.store.phone ?? ""} /> : <><p className="text-sm leading-6 text-fg-secondary">Your subscription has ended. Renew it before changing plans.</p><p className="mt-4 text-xs text-fg-muted">Online payment setup is pending provider connection.</p></>}</CardContent></Card>
+      <Card><CardHeader><CardTitle>{expired ? "Renew your subscription" : status === "TRIALING" ? "Choose your plan" : "Update your plan"}</CardTitle></CardHeader><CardContent>{subscription && plan ? <SubscriptionManager currentPlan={plan.key} plans={selectablePlans} paymentPhone={subscription.store.phone ?? ""} /> : <p className="text-sm leading-6 text-fg-secondary">No subscription is configured for this portal.</p>}</CardContent></Card>
     </div>
 
     <PlatformFeatureChecklist plan={subscription?.plan ?? "STARTER"} />

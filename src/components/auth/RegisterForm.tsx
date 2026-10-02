@@ -8,12 +8,16 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { RegionSelect } from "@/components/ui/RegionSelect";
+import { SELECTABLE_PLAN_KEYS, SUBSCRIPTION_PLANS } from "@/lib/config/subscription-plans";
 
-const PLANS = [
-  { value: "STARTER", name: "Starter", description: "For small shops", price: "GHS 99 / month" },
-  { value: "GROWTH", name: "Growth", description: "For growing supermarkets", price: "GHS 199 / month" },
-  { value: "ENTERPRISE", name: "Enterprise", description: "For multiple tills and teams", price: "Contact us" },
-] as const;
+// Prices and names come from the shared plan config so registration can never
+// drift from the landing page or billing.
+const PLANS = SELECTABLE_PLAN_KEYS.map((key) => ({
+  value: key,
+  name: SUBSCRIPTION_PLANS[key].name,
+  description: SUBSCRIPTION_PLANS[key].description,
+  price: SUBSCRIPTION_PLANS[key].price,
+}));
 
 const BUSINESS_TYPES = [
   { value: "SUPERMARKET", label: "Supermarket" },

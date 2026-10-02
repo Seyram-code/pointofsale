@@ -22,11 +22,13 @@ import { RecentTransactionsCard } from "@/components/dashboard/RecentTransaction
 import { TopProductsCard } from "@/components/dashboard/TopProductsCard";
 import { LowStockCard } from "@/components/dashboard/LowStockCard";
 import { ExpiringProductsCard } from "@/components/dashboard/ExpiringProductsCard";
+import { SubscriptionExpiryBanner } from "@/components/subscription/SubscriptionExpiryBanner";
 import { formatCurrency, formatDate, formatNumber, formatQuantity } from "@/lib/utils/format";
 import type { DashboardData } from "@/lib/services/dashboard.service";
 import type { SessionUser } from "@/lib/auth/types";
+import type { SubscriptionStatusInfo } from "@/lib/services/subscription.service";
 
-export function DashboardView({ user, data }: { user: SessionUser; data: DashboardData }) {
+export function DashboardView({ user, data, subscription }: { user: SessionUser; data: DashboardData; subscription?: SubscriptionStatusInfo | null }) {
   const { summary } = data;
   const canSeeProfit = user.permissions.includes(PERMISSIONS.REPORTS_PROFIT);
   const isRestaurant = user.businessType === "RESTAURANT";
@@ -111,6 +113,8 @@ export function DashboardView({ user, data }: { user: SessionUser; data: Dashboa
           </Link>
         }
       />
+
+      {subscription && <SubscriptionExpiryBanner subscription={subscription} />}
 
       {!user.storeId && (
         <Card className="mb-4 border-accent-300 bg-accent-50 dark:border-accent-800 dark:bg-accent-900/20">

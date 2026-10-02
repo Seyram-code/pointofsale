@@ -4,8 +4,8 @@ import { cache } from "react";
 import { prisma } from "@/lib/db/prisma";
 import { hashToken, signSessionToken, verifySessionToken } from "@/lib/auth/jwt";
 import { resolvePermissions } from "@/lib/auth/permissions";
+import { getPlanLimits, normalizePlanKey } from "@/lib/config/plan-features";
 import type { AuthenticatedSession, SessionUser } from "@/lib/auth/types";
-import { hasSubscriptionAccess } from "@/lib/services/subscription.service";
 
 const COOKIE_NAME = process.env.AUTH_COOKIE_NAME ?? "mypos_session";
 const TTL_HOURS = Number(process.env.AUTH_SESSION_TTL_HOURS ?? 12);
@@ -89,8 +89,29 @@ export const getSession = cache(async (): Promise<AuthenticatedSession | null> =
   if (!record || record.revokedAt || record.expiresAt < new Date()) return null;
   if (record.tokenHash !== (await hashToken(token))) return null;
   if (record.user.status !== "ACTIVE" || record.user.deletedAt) return null;
-  if (record.user.role !== "SUPER_ADMIN" && record.user.storeId && !(await hasSubscriptionAccess(record.user.storeId))) {
-    return null;
+  // NOTE: Subscription access is enforced per surface — the dashboard layout and the
+  // API layer (`authorize`) — rather than here, so an expired shop can still sign in
+  // and reach `/subscription` to renew. See `hasSubscriptionAccess`.
+
+  // Effective package for plan gating in the UI. Super admins see everything;
+  // a missing subscription falls back to the most restrictive package.
+  let planKey = "STARTER";
+  let scannerOnPos = false;
+  let scannerOutsidePos = false;
+  if (record.user.role === "SUPER_ADMIN") {
+    planKey = "ENTERPRISE";
+    scannerOnPos = true;
+    scannerOutsidePos = true;
+  } else if (record.user.storeId) {
+    const subscription = await prisma.storeSubscription.findFirst({
+      where: { storeId: record.user.storeId },
+      orderBy: { createdAt: "desc" },
+      select: { plan: true },
+    });
+    planKey = normalizePlanKey(subscription?.plan);
+    const limits = getPlanLimits(planKey);
+    scannerOnPos = limits.scannerOnPos;
+    scannerOutsidePos = limits.scannerOutsidePos;
   }
 
   const user: SessionUser = {
@@ -106,6 +127,9 @@ export const getSession = cache(async (): Promise<AuthenticatedSession | null> =
     avatarUrl: record.user.avatarUrl,
     mustChangePassword: record.user.mustChangePassword,
     permissions: resolvePermissions(record.user.role, record.user.permissions),
+    plan: planKey,
+    scannerOnPos,
+    scannerOutsidePos,
   };
 
   return { user, sessionId: record.id, expiresAt: record.expiresAt };

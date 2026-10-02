@@ -5,7 +5,6 @@ import { verifyPassword } from "@/lib/auth/password";
 import { loginSchema } from "@/lib/validations/auth.schema";
 import { ApiError, handleApiError, ok } from "@/lib/api/response";
 import { recordAudit, requestContext } from "@/lib/services/audit.service";
-import { hasSubscriptionAccess } from "@/lib/services/subscription.service";
 
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_MINUTES = 15;
@@ -71,10 +70,9 @@ export async function POST(request: NextRequest) {
       throw invalid;
     }
 
-    if (user.role !== "SUPER_ADMIN" && user.storeId && !(await hasSubscriptionAccess(user.storeId))) {
-      throw new ApiError("FORBIDDEN", "Your subscription has expired. Renew it to continue using the shop.", 403);
-    }
-
+    // NOTE: An expired subscription no longer blocks sign-in. The shop stays gated at the
+    // dashboard layout and the API layer (`authorize`) so the owner can still reach
+    // `/subscription` and renew. See `hasSubscriptionAccess`.
     await Promise.all([
       prisma.user.update({
         where: { id: user.id },

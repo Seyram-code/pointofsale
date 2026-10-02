@@ -1,7 +1,7 @@
 import "server-only";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
-import type { SubscriptionPlan } from "@/lib/config/subscription-plans";
+import { normalizePlanKey } from "@/lib/config/plan-features";
 import { getPlatformPlanPricing } from "@/lib/services/plan-pricing.service";
 
 export interface PlatformStoreSummary {
@@ -146,7 +146,7 @@ export async function getPlatformOverview(): Promise<PlatformOverview> {
       subscriptionStart: subscription?.currentPeriodStart ?? null,
       currentPeriodEnd: subscription?.currentPeriodEnd ?? null,
       trialEndsAt: subscription?.trialEndsAt ?? null,
-      monthlyPrice: planPrices.get(plan as SubscriptionPlan) ?? 0,
+      monthlyPrice: planPrices.get(normalizePlanKey(plan)) ?? 0,
       nextBilling: subscription?.currentPeriodEnd ?? null,
       registeredByAdmin: adminRegisteredStoreIds.has(store.id),
       ownerUserId: owner?.id ?? null,

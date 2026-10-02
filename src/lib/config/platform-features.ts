@@ -1,3 +1,5 @@
+import { normalizePlanKey, type PlanKey } from "@/lib/config/plan-features";
+
 export type FeatureKey =
   | "multiBranch"
   | "usageLimits"
@@ -9,7 +11,21 @@ export type FeatureKey =
   | "advancedAnalytics"
   | "platformBilling";
 
-export const PLAN_FEATURE_LIMITS = {
+export const PLAN_FEATURE_LIMITS: Record<PlanKey, Record<FeatureKey, boolean> & { maxStaff: number | null; maxBranches: number | null; dailyBackup: boolean }> = {
+  TRIAL: {
+    multiBranch: false,
+    usageLimits: true,
+    notifications: false,
+    auditLogs: true,
+    backups: false,
+    offlinePos: false,
+    mobileOptimization: true,
+    advancedAnalytics: false,
+    platformBilling: false,
+    maxStaff: 1,
+    maxBranches: 1,
+    dailyBackup: false,
+  },
   STARTER: {
     multiBranch: false,
     usageLimits: false,
@@ -20,11 +36,11 @@ export const PLAN_FEATURE_LIMITS = {
     mobileOptimization: true,
     advancedAnalytics: false,
     platformBilling: false,
-    maxStaff: 2,
+    maxStaff: 1,
     maxBranches: 1,
     dailyBackup: false,
   },
-  GROWTH: {
+  PREMIUM: {
     multiBranch: true,
     usageLimits: true,
     notifications: true,
@@ -34,7 +50,7 @@ export const PLAN_FEATURE_LIMITS = {
     mobileOptimization: true,
     advancedAnalytics: true,
     platformBilling: false,
-    maxStaff: 4,
+    maxStaff: 3,
     maxBranches: 2,
     dailyBackup: true,
   },
@@ -52,7 +68,7 @@ export const PLAN_FEATURE_LIMITS = {
     maxBranches: null,
     dailyBackup: true,
   },
-} as const;
+};
 
 export const FEATURE_META: Record<FeatureKey, { label: string; description: string }> = {
   multiBranch: { label: "Multi-branch", description: "Support multiple stores and branch-level operations." },
@@ -67,12 +83,17 @@ export const FEATURE_META: Record<FeatureKey, { label: string; description: stri
 };
 
 export function getPlanFeatureStatus(plan: string | null | undefined, feature: FeatureKey) {
-  const key = (plan ?? "STARTER").toUpperCase();
-  const planStatus = PLAN_FEATURE_LIMITS[key as keyof typeof PLAN_FEATURE_LIMITS] ?? PLAN_FEATURE_LIMITS.STARTER;
-  return planStatus[feature] as boolean;
+  const planStatus = PLAN_FEATURE_LIMITS[normalizePlanKey(plan)];
+  return planStatus[feature];
 }
 
+const PLAN_LABELS: Record<PlanKey, string> = {
+  TRIAL: "Trial",
+  STARTER: "Starter",
+  PREMIUM: "Premium",
+  ENTERPRISE: "Enterprise",
+};
+
 export function getPlanFeatureLabel(plan: string | null | undefined) {
-  const key = (plan ?? "STARTER").toUpperCase();
-  return key === "GROWTH" ? "Growth" : key === "ENTERPRISE" ? "Enterprise" : "Starter";
+  return PLAN_LABELS[normalizePlanKey(plan)];
 }

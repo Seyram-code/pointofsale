@@ -7,7 +7,8 @@ import { StoreLogo } from "@/components/brand/StoreLogo";
 
 export const metadata: Metadata = { title: "Plans" };
 
-const planOrder = ["STARTER", "GROWTH", "ENTERPRISE"] as const;
+const planOrder = ["TRIAL", "STARTER", "PREMIUM", "ENTERPRISE"] as const;
+const featuredPlan = "PREMIUM";
 
 export default function PlansPage() {
   return (
@@ -18,10 +19,12 @@ export default function PlansPage() {
       </header>
       <section className="mx-auto max-w-6xl px-5 pb-20 pt-12 sm:px-8 sm:pt-16">
         <div className="max-w-2xl"><p className="text-xs font-bold uppercase tracking-[0.16em] text-[#bc7c13]">Plans and monthly amounts</p><h1 className="mt-4 text-4xl font-semibold tracking-tight sm:text-5xl">Choose the right rhythm for your business.</h1><p className="mt-5 text-lg leading-8 text-[#64716a]">Start with a 14-day trial, then update your plan from your account as your shop grows.</p></div>
-        <div className="mt-10 grid gap-4 lg:grid-cols-3">
+        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {planOrder.map((key) => {
             const plan = SUBSCRIPTION_PLANS[key];
-            return <article key={key} className={`flex flex-col rounded-xl border p-6 ${key === "GROWTH" ? "border-[#e5ad35] bg-white shadow-[0_20px_45px_-30px_rgba(27,66,45,0.6)]" : "border-[#d5dfd7] bg-white"}`}><div className="flex items-start justify-between gap-3"><div><div className="flex items-center gap-2"><Store className="size-5 text-[#1c724d]" /><h2 className="text-xl font-bold">{plan.name}</h2></div><p className="mt-3 text-sm text-[#64716a]">{plan.description}</p></div>{key === "GROWTH" && <span className="rounded-full bg-[#e5ad35] px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-[#183b2b]">Popular</span>}</div><p className="mt-8 text-3xl font-semibold">{plan.monthlyPrice === null ? "Custom" : <>GHS {plan.monthlyPrice}<span className="text-sm font-normal text-[#64716a]"> / month</span></>}</p><ul className="mt-6 flex-1 space-y-3 border-t border-[#e5ebe6] pt-5">{plan.features.map((feature) => <li key={feature} className="flex items-start gap-2 text-sm text-[#64716a]"><Check className="mt-0.5 size-4 shrink-0 text-[#1c724d]" />{feature}</li>)}</ul><Link href="/register" className="mt-8 inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#1c724d] text-sm font-bold text-white hover:bg-[#155e3f]">Choose {plan.name} <ArrowRight className="size-4" /></Link></article>;
+            const featured = key === featuredPlan;
+            const isTrial = key === "TRIAL";
+            return <article key={key} className={`flex flex-col rounded-xl border p-6 ${featured ? "border-[#e5ad35] bg-white shadow-[0_20px_45px_-30px_rgba(27,66,45,0.6)]" : "border-[#d5dfd7] bg-white"}`}><div className="flex items-start justify-between gap-3"><div><div className="flex items-center gap-2"><Store className="size-5 text-[#1c724d]" /><h2 className="text-xl font-bold">{plan.name}</h2></div><p className="mt-3 text-sm text-[#64716a]">{plan.description}</p></div>{featured && <span className="rounded-full bg-[#e5ad35] px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-[#183b2b]">Popular</span>}</div><p className="mt-8 text-3xl font-semibold">{plan.monthlyPrice === null ? plan.price : <>GHS {plan.monthlyPrice.toLocaleString("en-GH")}<span className="text-sm font-normal text-[#64716a]"> / month</span></>}</p><ul className="mt-6 flex-1 space-y-3 border-t border-[#e5ebe6] pt-5">{plan.features.map((feature) => <li key={feature} className="flex items-start gap-2 text-sm text-[#64716a]"><Check className="mt-0.5 size-4 shrink-0 text-[#1c724d]" />{feature}</li>)}</ul><Link href="/register" className="mt-8 inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#1c724d] text-sm font-bold text-white hover:bg-[#155e3f]">{isTrial ? "Start free trial" : `Choose ${plan.name}`} <ArrowRight className="size-4" /></Link></article>;
           })}
         </div>
       </section>

@@ -6,7 +6,7 @@ import { ApiError, handleApiError, ok } from "@/lib/api/response";
 import { getPlatformPlanPricing } from "@/lib/services/plan-pricing.service";
 
 const planSchema = z.object({
-  plan: z.enum(["STARTER", "GROWTH", "ENTERPRISE"]),
+  plan: z.enum(["TRIAL", "STARTER", "PREMIUM", "ENTERPRISE"]),
   monthlyPrice: z.number().finite().positive().nullable(),
 });
 
@@ -27,7 +27,12 @@ export async function PUT(request: Request) {
     if (!session) throw new UnauthorizedError();
     if (session.user.role !== "SUPER_ADMIN") throw new ForbiddenError("Only the super admin can manage platform plans");
     const input = planSchema.parse(await request.json());
-    if (input.plan !== "ENTERPRISE" && input.monthlyPrice === null) throw ApiError.badRequest("This plan needs a monthly amount");
+    // The trial is always free; every other package carries a monthly amount.
+    if (input.plan === "TRIAL") {
+      if (input.monthlyPrice !== null) throw ApiError.badRequest("The trial package is free for 14 days and cannot be billed");
+    } else if (input.monthlyPrice === null) {
+      throw ApiError.badRequest("This plan needs a monthly amount");
+    }
 
     await prisma.platformPlan.upsert({
       where: { key: input.plan },

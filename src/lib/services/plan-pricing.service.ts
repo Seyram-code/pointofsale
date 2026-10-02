@@ -26,7 +26,13 @@ export async function getPlatformPlanPricing(): Promise<PlatformPlanPricing[]> {
       key,
       name: SUBSCRIPTION_PLANS[key].name,
       monthlyPrice,
-      priceLabel: monthlyPrice === null ? "Custom pricing" : `GHS ${monthlyPrice.toLocaleString("en-GH")} / month`,
+      // Only the trial package is unbilled; every paid package has a real amount.
+      priceLabel:
+        monthlyPrice === null
+          ? key === "TRIAL"
+            ? "Free for 14 days"
+            : "Custom pricing"
+          : `GHS ${monthlyPrice.toLocaleString("en-GH")} / month`,
     };
   });
 }

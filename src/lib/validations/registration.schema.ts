@@ -27,7 +27,7 @@ export const registrationSchema = z.object({
   email: z.string().trim().email("Enter a valid email address").max(160),
   phone: z.string().trim().min(7, "Enter a valid phone number").max(40),
   password: z.string().min(1, "Create a password").max(200),
-  plan: z.enum(["STARTER", "GROWTH", "ENTERPRISE"]),
+  plan: z.enum(["STARTER", "PREMIUM", "ENTERPRISE"]),
 });
 
 export type RegistrationInput = z.infer<typeof registrationSchema>;

@@ -1,14 +1,8 @@
 import "server-only";
 import { prisma } from "@/lib/db/prisma";
-import { getSubscriptionPlan } from "@/lib/config/subscription-plans";
+import { getPlanLimits } from "@/lib/config/plan-features";
 
 export type UsageMetric = "staff_count" | "branches" | "offline_sync_minutes" | "reports_exports";
-
-const DEFAULT_LIMITS: Record<string, { max: number | null }> = {
-  STARTER: { max: 2 },
-  GROWTH: { max: 4 },
-  ENTERPRISE: { max: null },
-};
 
 export async function getStoreUsageStatus(storeId: string) {
   const subscription = await prisma.storeSubscription.findFirst({
@@ -17,17 +11,17 @@ export async function getStoreUsageStatus(storeId: string) {
     select: { plan: true },
   });
 
-  const plan = getSubscriptionPlan(subscription?.plan ?? "STARTER");
+  const limits = getPlanLimits(subscription?.plan ?? "STARTER");
   const staffCount = await prisma.user.count({ where: { storeId, deletedAt: null } });
 
   return {
-    planName: plan.name,
-    maxStaff: plan.maxStaff,
+    planName: limits.label,
+    maxStaff: limits.maxStaff,
     currentStaff: staffCount,
-    allowedStaff: plan.maxStaff === null || staffCount < plan.maxStaff,
-    maxBranches: plan.maxStaff === null ? null : 1,
+    allowedStaff: limits.maxStaff === null || staffCount < limits.maxStaff,
+    maxBranches: limits.maxStaff === null ? null : 1,
     currentBranches: 1,
-    offlineModeEnabled: plan.maxStaff === null || plan.maxStaff >= 4,
+    offlineModeEnabled: true,
   };
 }
 
@@ -38,20 +32,21 @@ export async function enforceUsageLimit(storeId: string, metric: UsageMetric) {
     select: { plan: true },
   });
 
-  const planKey = (subscription?.plan ?? "STARTER").toUpperCase();
-  const planDefaults = DEFAULT_LIMITS[planKey] ?? DEFAULT_LIMITS.STARTER;
+  const limits = getPlanLimits(subscription?.plan ?? "STARTER");
 
   if (metric === "staff_count") {
     const currentValue = await prisma.user.count({ where: { storeId, deletedAt: null } });
-    const maxValue = planDefaults.max;
+    const maxValue = limits.maxStaff;
     if (maxValue !== null && currentValue > maxValue) {
-      throw new Error(`Your ${planKey.toLowerCase()} plan allows up to ${maxValue} staff accounts. Upgrade your plan to add more.`);
+      throw new Error(
+        `Your ${limits.label} plan allows up to ${maxValue} staff account${maxValue === 1 ? "" : "s"}. Upgrade your plan to add more.`,
+      );
     }
   }
 
   await prisma.usageLimit.upsert({
     where: { storeId_metric: { storeId, metric } },
-    update: { currentValue: metric === "staff_count" ? await prisma.user.count({ where: { storeId, deletedAt: null } }) : 0, maxValue: planDefaults.max ?? null },
-    create: { storeId, metric, currentValue: metric === "staff_count" ? await prisma.user.count({ where: { storeId, deletedAt: null } }) : 0, maxValue: planDefaults.max ?? null },
+    update: { currentValue: metric === "staff_count" ? await prisma.user.count({ where: { storeId, deletedAt: null } }) : 0, maxValue: limits.maxStaff ?? null },
+    create: { storeId, metric, currentValue: metric === "staff_count" ? await prisma.user.count({ where: { storeId, deletedAt: null } }) : 0, maxValue: limits.maxStaff ?? null },
   });
 }

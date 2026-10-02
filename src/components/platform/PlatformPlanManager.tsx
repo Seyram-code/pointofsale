@@ -59,7 +59,18 @@ export function PlatformPlanManager() {
       <Button type="button" variant="outline" leftIcon={<CreditCard className="size-4" />} onClick={openManager}>Manage subscription plans</Button>
       <Modal open={open} onClose={() => setOpen(false)} title="Manage subscription plans" description="Update the monthly amounts shown to businesses and on the public plans page." size="lg">
         <div className="space-y-4">
-          {plans.map((plan) => <div key={plan.key} className="grid gap-3 rounded-xl border border-line p-4 sm:grid-cols-[1fr_220px_auto] sm:items-end"><div><p className="font-semibold text-fg">{plan.name}</p><p className="text-xs text-fg-muted">{plan.key === "ENTERPRISE" ? "Leave blank for custom pricing." : "Amount in Ghana cedis per month."}</p></div><Input label="Monthly amount (GHS)" type="number" min="1" step="0.01" value={values[plan.key] ?? ""} onChange={(event) => setValues((current) => ({ ...current, [plan.key]: event.target.value }))} placeholder={plan.key === "ENTERPRISE" ? "Custom" : "Amount"} /><Button type="button" size="sm" loading={loading} onClick={() => savePlan(plan)}>Save amount</Button></div>)}
+          {plans.map((plan) => {
+            const isTrial = plan.key === "TRIAL";
+            return <div key={plan.key} className="grid gap-3 rounded-xl border border-line p-4 sm:grid-cols-[1fr_220px_auto] sm:items-end">
+              <div><p className="font-semibold text-fg">{plan.name}</p><p className="text-xs text-fg-muted">{isTrial ? "Free for 14 days — not billed." : "Amount in Ghana cedis per month."}</p></div>
+              {isTrial
+                ? <div className="flex h-11 items-center rounded-lg border border-line bg-muted/40 px-3 text-sm font-medium text-fg-muted">Free</div>
+                : <Input label="Monthly amount (GHS)" type="number" min="1" step="0.01" value={values[plan.key] ?? ""} onChange={(event) => setValues((current) => ({ ...current, [plan.key]: event.target.value }))} placeholder="Amount" />}
+              {isTrial
+                ? <span className="text-xs font-medium text-fg-muted sm:self-center">Always free</span>
+                : <Button type="button" size="sm" loading={loading} onClick={() => savePlan(plan)}>Save amount</Button>}
+            </div>;
+          })}
         </div>
       </Modal>
     </>

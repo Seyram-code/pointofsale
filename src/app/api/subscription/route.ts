@@ -1,17 +1,19 @@
 import { authorize } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db/prisma";
+import { Prisma } from "@prisma/client";
 import { ApiError, handleApiError, ok } from "@/lib/api/response";
 import { MOMO_NETWORK_PREFIXES } from "@/lib/config/constants";
 import { PaymentError } from "@/lib/payments/errors";
 import { getPaymentProvider } from "@/lib/payments/registry";
 import { generateStoreScopedReference } from "@/lib/services/id-registry";
 import { getPlatformPlanPricing } from "@/lib/services/plan-pricing.service";
+import { normalizePlanKey } from "@/lib/config/plan-features";
 import { normalizeGhanaPhone } from "@/lib/utils/format";
 import { z } from "zod";
 
 export async function GET() {
   try {
-    const session = await authorize();
+    const session = await authorize(undefined, { allowExpiredSubscription: true });
     if (!session.user.storeId) throw ApiError.badRequest("Your account is not linked to a store");
     const subscription = await prisma.storeSubscription.findFirst({
       where: { storeId: session.user.storeId },
@@ -28,17 +30,22 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const session = await authorize();
+    const session = await authorize(undefined, { allowExpiredSubscription: true });
     if (!session.user.storeId) throw ApiError.badRequest("Your account is not linked to a store");
     const { plan, paymentMethod, paymentPhone } = z.object({
-      plan: z.enum(["STARTER", "GROWTH", "ENTERPRISE"]),
+      // Trial is granted by the platform at sign-up, so it is never purchasable.
+      plan: z.enum(["STARTER", "PREMIUM", "ENTERPRISE"]),
       paymentMethod: z.enum(["CARD", "MOMO"]).optional(),
       paymentPhone: z.string().trim().optional(),
     }).parse(await request.json());
     const subscription = await prisma.storeSubscription.findFirst({ where: { storeId: session.user.storeId }, orderBy: { createdAt: "desc" } });
     if (!subscription) throw ApiError.notFound("Subscription");
-    if (!["TRIALING", "ACTIVE"].includes(subscription.status) || subscription.currentPeriodEnd < new Date()) throw ApiError.badRequest("Renew your subscription before changing an expired plan");
-    if (plan === subscription.plan) return ok({ plan: subscription.plan, status: subscription.status, currentPeriodEnd: subscription.currentPeriodEnd });
+    const now = new Date();
+    // An ended subscription must be paid for to renew; a live one only changes plan.
+    const expired = subscription.status === "CANCELED" || !["TRIALING", "ACTIVE"].includes(subscription.status) || subscription.currentPeriodEnd < now;
+    // Compare against the normalised key so legacy rows (e.g. GROWTH) are not re-charged.
+    const currentPlan = normalizePlanKey(subscription.plan);
+    if (plan === currentPlan && !expired) return ok({ plan: subscription.plan, status: subscription.status, currentPeriodEnd: subscription.currentPeriodEnd });
 
     let providerId: string | undefined;
     let externalRef: string | null = null;
@@ -77,7 +84,23 @@ export async function POST(request: Request) {
       externalRef = paymentResult.externalRef;
     }
 
-    const updated = await prisma.storeSubscription.update({ where: { id: subscription.id }, data: { plan, ...(providerId ? { provider: providerId, providerSubscriptionId: externalRef } : {}) }, select: { plan: true, status: true, currentPeriodEnd: true } });
+    const data: Prisma.StoreSubscriptionUpdateInput = { plan };
+    if (providerId) {
+      data.provider = providerId;
+      data.providerSubscriptionId = externalRef;
+    }
+    if (expired) {
+      // Renewal: start a fresh monthly cycle from the later of now and the old period end.
+      const periodStart = subscription.currentPeriodEnd > now ? subscription.currentPeriodEnd : now;
+      const periodEnd = new Date(periodStart);
+      periodEnd.setMonth(periodEnd.getMonth() + 1);
+      data.status = "ACTIVE";
+      data.currentPeriodStart = periodStart;
+      data.currentPeriodEnd = periodEnd;
+      data.canceledAt = null;
+    }
+
+    const updated = await prisma.storeSubscription.update({ where: { id: subscription.id }, data, select: { plan: true, status: true, currentPeriodEnd: true } });
     return ok(updated);
   } catch (error) {
     return handleApiError(error);

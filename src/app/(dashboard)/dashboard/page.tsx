@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth/guard";
 import { PERMISSIONS } from "@/lib/auth/permissions";
 import { EMPTY_DASHBOARD, getDashboardData } from "@/lib/services/dashboard.service";
+import { getSubscriptionStatus } from "@/lib/services/subscription.service";
 import { DashboardView } from "@/components/dashboard/DashboardView";
 import { DayBoundaryRefresh } from "@/components/layout/DayBoundaryRefresh";
 
@@ -17,11 +18,12 @@ export default async function DashboardPage() {
   }
 
   const data = user.storeId ? await getDashboardData(user.storeId, user.permissions.includes(PERMISSIONS.SALES_VIEW_ALL) ? undefined : user.id) : EMPTY_DASHBOARD;
+  const subscription = user.storeId ? await getSubscriptionStatus(user.storeId) : null;
 
   return (
     <>
       <DayBoundaryRefresh />
-      <DashboardView user={user} data={data} />
+      <DashboardView user={user} data={data} subscription={subscription} />
     </>
   );
 }

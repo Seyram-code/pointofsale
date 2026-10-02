@@ -2,19 +2,13 @@ import { ForbiddenError, UnauthorizedError } from "@/lib/auth/guard";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, handleApiError, ok } from "@/lib/api/response";
-import { getPaymentProvider } from "@/lib/payments/registry";
-import { PaymentError } from "@/lib/payments/errors";
-import { generateStoreScopedReference } from "@/lib/services/id-registry";
-import { MOMO_NETWORK_PREFIXES } from "@/lib/config/constants";
-import { getPlatformPlanPricing } from "@/lib/services/plan-pricing.service";
-import { normalizeGhanaPhone } from "@/lib/utils/format";
 import { z } from "zod";
+
+const TRIAL_LENGTH_MS = 14 * 24 * 60 * 60 * 1000;
 
 const actionSchema = z.object({
   action: z.enum(["activate", "suspend", "cancel", "change_plan"]),
-  plan: z.enum(["STARTER", "GROWTH", "ENTERPRISE"]).optional(),
-  paymentMethod: z.enum(["CARD", "MOMO"]).optional(),
-  paymentPhone: z.string().trim().optional(),
+  plan: z.enum(["TRIAL", "STARTER", "PREMIUM", "ENTERPRISE"]).optional(),
 });
 
 export async function POST(
@@ -39,45 +33,13 @@ export async function POST(
     });
     if (!subscription) throw ApiError.notFound("Business subscription");
 
-    let paymentProviderId: string | null = null;
-    let paymentExternalRef: string | null = null;
-    if (input.action === "change_plan" && input.plan && input.plan !== "ENTERPRISE") {
-      if (!input.paymentMethod) throw ApiError.badRequest("Choose a payment method for this plan");
-      if (input.paymentMethod === "MOMO" && !input.paymentPhone) throw ApiError.badRequest("A business phone number is required for Mobile Money");
-
-      const planPricing = await getPlatformPlanPricing();
-      const selectedPlan = planPricing.find((plan) => plan.key === input.plan);
-      if (!selectedPlan || selectedPlan.monthlyPrice === null) throw ApiError.badRequest("This plan does not have a payable amount");
-
-      const provider = getPaymentProvider(input.paymentMethod);
-      const normalizedPhone = input.paymentMethod === "MOMO" ? normalizeGhanaPhone(input.paymentPhone!) : null;
-      const momoNetwork = normalizedPhone
-        ? Object.entries(MOMO_NETWORK_PREFIXES).find(([, prefixes]) => prefixes.includes(normalizedPhone.slice(0, 3)))?.[0]
-        : undefined;
-      if (input.paymentMethod === "MOMO" && (!normalizedPhone || !momoNetwork)) throw ApiError.badRequest("Enter a valid Ghanaian Mobile Money number");
-      let paymentResult;
-      try {
-        paymentResult = await provider.initiate({
-          method: input.paymentMethod,
-          amount: selectedPlan.monthlyPrice,
-          currency: "GHS",
-          reference: generateStoreScopedReference(storeId, "SUB", 12),
-          description: `${selectedPlan.name} subscription for ${store.name}`,
-          storeId,
-          cashierId: session.user.id,
-          momo: input.paymentMethod === "MOMO" ? { network: momoNetwork as "MTN" | "VODAFONE" | "AIRTELTIGO", phone: normalizedPhone! } : undefined,
-        });
-      } catch (error) {
-        if (error instanceof PaymentError) throw ApiError.badRequest(error.message);
-        throw error;
-      }
-
-      if (paymentResult.state !== "SUCCESSFUL") {
-        throw ApiError.badRequest(paymentResult.failureReason ?? paymentResult.message ?? "Payment was not completed");
-      }
-      paymentProviderId = provider.id;
-      paymentExternalRef = paymentResult.externalRef;
-    }
+    const now = new Date();
+    // Assigning a plan is how the platform issues a subscription, so no payment
+    // is collected here — the change is applied immediately.
+    const periodExpired = subscription.currentPeriodEnd < now;
+    let periodStart: Date | null = null;
+    let periodEnd: Date | null = null;
+    let trialEndsAt: Date | null | undefined;
 
     const changes: Record<string, { from: string | boolean; to: string | boolean }> = {};
     const data = {
@@ -102,6 +64,26 @@ export async function POST(
     } else if (input.plan) {
       data.plan = input.plan;
       changes.plan = { from: subscription.plan, to: input.plan };
+
+      // Issuing a plan always re-activates the subscription.
+      const isTrial = input.plan === "TRIAL";
+      const nextStatus = isTrial ? ("TRIALING" as const) : ("ACTIVE" as const);
+      data.subscriptionStatus = nextStatus;
+      if (subscription.status !== nextStatus) changes.status = { from: subscription.status, to: nextStatus };
+
+      if (isTrial) {
+        // A trial always starts a fresh 14-day window from today.
+        periodStart = now;
+        trialEndsAt = new Date(now.getTime() + TRIAL_LENGTH_MS);
+        periodEnd = trialEndsAt;
+      } else if (periodExpired) {
+        // A lapsed period needs covering before paid access can resume.
+        periodStart = now;
+        const end = new Date(periodStart);
+        end.setMonth(end.getMonth() + 1);
+        periodEnd = end;
+        trialEndsAt = null;
+      }
     }
 
     const updated = await prisma.$transaction(async (tx) => {
@@ -111,8 +93,10 @@ export async function POST(
         data: {
           status: data.subscriptionStatus,
           plan: data.plan,
-          ...(paymentProviderId ? { provider: paymentProviderId, providerSubscriptionId: paymentExternalRef } : {}),
-          canceledAt: input.action === "cancel" ? new Date() : input.action === "activate" ? null : subscription.canceledAt,
+          ...(periodStart ? { currentPeriodStart: periodStart } : {}),
+          ...(periodEnd ? { currentPeriodEnd: periodEnd } : {}),
+          ...(trialEndsAt !== undefined ? { trialEndsAt } : {}),
+          canceledAt: input.action === "cancel" ? new Date() : input.action === "change_plan" || input.action === "activate" ? null : subscription.canceledAt,
         },
         select: { plan: true, status: true, currentPeriodStart: true, currentPeriodEnd: true },
       });
