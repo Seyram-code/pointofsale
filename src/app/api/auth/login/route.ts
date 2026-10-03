@@ -70,6 +70,13 @@ export async function POST(request: NextRequest) {
       throw invalid;
     }
 
+    if (user.role === "ADMIN" && user.storeId) {
+      const store = await prisma.store.findUnique({ where: { id: user.storeId }, select: { isActive: true } });
+      if (store && !store.isActive) {
+        throw new ApiError("FORBIDDEN", "Your shop is not activated yet. Enter the code sent to your email.", 403);
+      }
+    }
+
     // NOTE: An expired subscription no longer blocks sign-in. The shop stays gated at the
     // dashboard layout and the API layer (`authorize`) so the owner can still reach
     // `/subscription` and renew. See `hasSubscriptionAccess`.

@@ -199,6 +199,11 @@ model Store {
   logoUrl                    String?
   taxSettings                String?
   isActive                   Boolean  @default(true)
+  emailVerifiedAt            DateTime? @default(now())
+  activationCodeHash         String?  @db.VarChar(64)
+  activationCodeExpiresAt    DateTime?
+  activationCodeSentAt       DateTime?
+  activationCodeAttempts     Int      @default(0)
   createdAt                  DateTime @default(now())
   updatedAt                  DateTime @updatedAt
 

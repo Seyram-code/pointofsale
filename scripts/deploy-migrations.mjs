@@ -10,6 +10,7 @@ const SUPPORT_PRESENCE = "20260928110000_add_support_typing_presence";
 const SUPPORT_READ_AT = "20260928130000_add_support_message_read_at";
 const STORE_TAX_RATES = "20260929150000_store_specific_tax_rates";
 const UNIQUE_PRODUCT_NAME = "20260930100000_unique_product_name_per_store";
+const STORE_EMAIL_ACTIVATION = "20261003100000_add_store_email_activation";
 let connection;
 
 async function query(sql, values) {
@@ -119,6 +120,31 @@ async function reconcileProductNameMigration(tables) {
   if (hasUnresolvedFailure) resolveMigration(UNIQUE_PRODUCT_NAME, "rolled-back");
 }
 
+async function reconcileStoreEmailActivation(tables, applied) {
+  if (!tables.has("Store")) return;
+
+  const columns = await query("SELECT COLUMN_NAME AS columnName FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Store'");
+  const activationColumns = new Set([
+    "emailVerifiedAt",
+    "activationCodeHash",
+    "activationCodeExpiresAt",
+    "activationCodeSentAt",
+    "activationCodeAttempts",
+  ]);
+  const existingColumns = new Set(columns.map((column) => column.columnName).filter((column) => activationColumns.has(column)));
+
+  if (existingColumns.size > 0 && existingColumns.size !== activationColumns.size) {
+    throw new Error("The Store email activation schema is partial; inspect the database before deploying.");
+  }
+  if (existingColumns.size === activationColumns.size && !applied.has(STORE_EMAIL_ACTIVATION)) {
+    resolveMigration(STORE_EMAIL_ACTIVATION);
+    applied.add(STORE_EMAIL_ACTIVATION);
+  }
+  if (applied.has(STORE_EMAIL_ACTIVATION) && existingColumns.size !== activationColumns.size) {
+    throw new Error("The Store email activation migration is recorded as applied, but one or more columns are missing.");
+  }
+}
+
 async function main() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL is required to deploy database migrations.");
@@ -160,6 +186,7 @@ async function main() {
   await reconcileImportedSupportSchema(tables, currentApplied);
   await reconcileImportedTaxSchema(tables, currentApplied);
   await reconcileProductNameMigration(tables);
+  await reconcileStoreEmailActivation(tables, currentApplied);
   deployMigrations();
 }
 

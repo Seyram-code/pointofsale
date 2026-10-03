@@ -7,6 +7,7 @@ const PUBLIC_PATHS = [
   "/",
   "/login",
   "/register",
+  "/activate",
   "/plans",
   "/privacy-policy",
   "/terms",
@@ -15,6 +16,8 @@ const PUBLIC_PATHS = [
   "/sw.js",
   "/api/auth/login",
   "/api/auth/register",
+  "/api/auth/activate-shop",
+  "/api/auth/resend-shop-activation",
   "/api/health",
   // Provider callbacks authenticate by signature, not by session.
   "/api/payments/webhook",

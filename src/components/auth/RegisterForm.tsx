@@ -63,7 +63,7 @@ export function RegisterForm({ platformMode = false }: { platformMode?: boolean 
       if (platformMode) {
         window.location.reload();
       } else {
-        window.location.assign("/dashboard");
+        window.location.assign(`/activate?email=${encodeURIComponent(String(form.get("email")))}`);
       }
     } catch (submissionError) {
       if (submissionError instanceof ApiClientError && submissionError.code === "CONFLICT") {

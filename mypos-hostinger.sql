@@ -21,6 +21,11 @@ CREATE TABLE `Store` (
     `logoUrl` VARCHAR(191) NULL,
     `taxSettings` VARCHAR(191) NULL,
     `isActive` BOOLEAN NOT NULL DEFAULT true,
+    `emailVerifiedAt` DATETIME(3) NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `activationCodeHash` VARCHAR(64) NULL,
+    `activationCodeExpiresAt` DATETIME(3) NULL,
+    `activationCodeSentAt` DATETIME(3) NULL,
+    `activationCodeAttempts` INTEGER NOT NULL DEFAULT 0,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
