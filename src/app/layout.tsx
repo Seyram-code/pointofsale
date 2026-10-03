@@ -7,16 +7,16 @@ import { publicEnv } from "@/lib/config/env";
 
 export const metadata: Metadata = {
   title: {
-    default: `${publicEnv.appName} — Supermarket POS`,
+    default: `${publicEnv.appName} — Point of Sale`,
     template: `%s · ${publicEnv.appName}`,
   },
-  description: "Modern point of sale and retail management for supermarkets in Ghana.",
+  description: "Point of sale and retail management for shops and pharmacies in Ghana.",
   applicationName: publicEnv.appName,
   manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/icons/mypos.svg",
-    shortcut: "/icons/mypos.svg",
-    apple: "/icons/mypos.svg",
+    icon: "/icons/vidypos-cart.png",
+    shortcut: "/icons/vidypos-cart.png",
+    apple: "/icons/vidypos-cart.png",
   },
   formatDetection: { telephone: false },
 };

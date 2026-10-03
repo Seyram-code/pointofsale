@@ -12,7 +12,7 @@ const querySchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await authorize(PERMISSIONS.CUSTOMERS_POS_LOOKUP);
+    const session = await authorize(PERMISSIONS.CUSTOMERS_POS_LOOKUP, { planFeature: "customers" });
     if (!session.user.storeId) return ok([]);
 
     const { q, limit } = querySchema.parse(Object.fromEntries(request.nextUrl.searchParams.entries()));

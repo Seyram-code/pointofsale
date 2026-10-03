@@ -1,5 +1,5 @@
--- MyPOS support ticket tables
--- Import this after the existing MyPOS schema has been created.
+-- VidyPOS support ticket tables
+-- Import this after the existing VidyPOS schema has been created.
 -- Existing tables and data are not modified.
 
 CREATE TABLE IF NOT EXISTS `SupportTicket` (

@@ -3,7 +3,7 @@ import type { UserRole } from "@prisma/client";
 import { authorize } from "@/lib/auth/guard";
 import { PERMISSIONS } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/db/prisma";
-import { hashPassword, checkPasswordStrength } from "@/lib/auth/password";
+import { createStaffAccessCode, encryptStaffAccessCode, getStoreAccessCodePrefix, hashStaffAccessCode } from "@/lib/auth/staff-access-code";
 import { ApiError, created, handleApiError, ok } from "@/lib/api/response";
 import { recordAudit, requestContext } from "@/lib/services/audit.service";
 import { nextShortNumber, peekShortNumber, STAFF_ROLE_PREFIXES } from "@/lib/services/numbering.service";
@@ -28,7 +28,20 @@ export async function GET(request: NextRequest) {
 
     const staffCode = await peekShortNumber(session.user.storeId, `STAFF_${role}`, STAFF_ROLE_PREFIXES[role]);
     const employeeNumber = await peekShortNumber(session.user.storeId, "EMPLOYEE", "EMP");
-    return ok({ staffCode, employeeNumber });
+    const includeAccessCode = request.nextUrl.searchParams.get("includeAccessCode") === "1";
+    let accessCode: string | undefined;
+    if (includeAccessCode) {
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        const candidate = createStaffAccessCode(session.user.storeName ?? "Shop");
+        const existing = await prisma.user.findUnique({ where: { staffAccessCodeHash: candidate.hash }, select: { id: true } });
+        if (!existing) {
+          accessCode = candidate.accessCode;
+          break;
+        }
+      }
+      if (!accessCode) throw ApiError.badRequest("Could not generate a unique staff access code. Try again.");
+    }
+    return ok({ staffCode, employeeNumber, ...(accessCode ? { accessCode } : {}) });
   } catch (error) {
     return handleApiError(error);
   }
@@ -48,50 +61,52 @@ export async function POST(request: NextRequest) {
 
     const body = (await request.json()) as Record<string, unknown>;
     const fullName = typeof body.fullName === "string" ? body.fullName.trim() : "";
-    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-    const password = typeof body.password === "string" ? body.password : "";
     const role = typeof body.role === "string" ? body.role : "";
-    const position = typeof body.position === "string" ? body.position.trim() : "";
-    const department = typeof body.department === "string" ? body.department.trim() : "";
+    const requestedAccessCode = typeof body.staffAccessCode === "string" ? body.staffAccessCode.trim().toUpperCase() : "";
 
-    if (!fullName || !email || !password || !STAFF_ROLES.includes(role as UserRole)) {
-      throw ApiError.badRequest("Name, email, role and password are required");
+    if (!fullName || !STAFF_ROLES.includes(role as UserRole) || !requestedAccessCode) {
+      throw ApiError.badRequest("Name, role and generated staff access code are required");
     }
     if (!canManageRole(session.user.role, role)) {
       throw new ApiError("FORBIDDEN", "Only administrators can create administrator accounts", 403);
     }
-    const passwordCheck = checkPasswordStrength(password);
-    if (!passwordCheck.valid) throw ApiError.badRequest(passwordCheck.issues.join(". "));
-
-    const passwordHash = await hashPassword(password);
-
+    const codePattern = new RegExp(`^${getStoreAccessCodePrefix(session.user.storeName ?? "Shop")}\\d{3}$`);
+    if (!codePattern.test(requestedAccessCode)) throw ApiError.badRequest("Generate a valid staff access code for this store");
     let createdUser;
-    for (let attempt = 0; attempt < 5; attempt += 1) {
+    let staffAccessCode = "";
+    for (let attempt = 0; attempt < 20; attempt += 1) {
       try {
-        createdUser = await prisma.$transaction(async (tx) => {
+        const createdEmployee = await prisma.$transaction(async (tx) => {
           const staffCode = await nextShortNumber(tx, storeId, `STAFF_${role}`, STAFF_ROLE_PREFIXES[role]);
           const employeeNumber = await nextShortNumber(tx, storeId, "EMPLOYEE", "EMP");
+          const generatedCode = attempt === 0
+            ? { accessCode: requestedAccessCode, hash: hashStaffAccessCode(requestedAccessCode) }
+            : createStaffAccessCode(session.user.storeName ?? "Shop");
           const user = await tx.user.create({
             data: {
               storeId,
               fullName,
-              email,
+              email: null,
               staffCode,
-              passwordHash,
+              passwordHash: null,
+              staffAccessCodeHash: generatedCode.hash,
+              staffAccessCodeEncrypted: encryptStaffAccessCode(generatedCode.accessCode),
               role: role as UserRole,
               status: "ACTIVE",
               mustChangePassword: false,
               employeeProfile: {
-                create: { employeeNumber, position: position || null, department: department || null },
+                create: { employeeNumber },
               },
             },
             select: { id: true, fullName: true, email: true, staffCode: true, role: true, employeeProfile: { select: { employeeNumber: true } } },
           });
-          return user;
+          return { user, accessCode: generatedCode.accessCode };
         });
+        createdUser = createdEmployee.user;
+        staffAccessCode = createdEmployee.accessCode;
         break;
       } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002" && attempt < 4) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002" && attempt < 19) {
           await nextShortNumber(prisma, storeId, `STAFF_${role}`, STAFF_ROLE_PREFIXES[role]);
           await nextShortNumber(prisma, storeId, "EMPLOYEE", "EMP");
           continue;
@@ -119,7 +134,7 @@ export async function POST(request: NextRequest) {
       body: `${createdUser.fullName} was added as a ${createdUser.role.toLowerCase().replaceAll("_", " ")}.`,
     });
 
-    return created(createdUser);
+    return created({ ...createdUser, staffAccessCode });
   } catch (error) {
     return handleApiError(error);
   }

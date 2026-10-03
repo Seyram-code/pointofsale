@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ==========================================================================
-   MyPOS design system tokens
+  VidyPOS design system tokens
    Palette: Ghana-inspired green primary, gold accent, high-contrast neutrals
    tuned for glare-heavy retail floors and thermal-receipt printing.
    ========================================================================== */
@@ -154,5 +154,89 @@
 @media print {
   .no-print {
     display: none !important;
+  }
+}
+
+@supports selector(body:has(.print-sheet)) {
+  @media print {
+    /* A receipt is being printed: hide everything on the page that is not an
+       ancestor of the receipt itself (app shell, toasts, overlays). */
+    body:has(.print-sheet) > *:not(:has(.print-sheet)) {
+      display: none !important;
+    }
+
+    body:has(.print-sheet) > *:has(.print-sheet) {
+      position: static !important;
+      inset: auto !important;
+      display: block !important;
+      width: auto !important;
+      height: auto !important;
+    }
+
+    /* Modal locks body overflow while open, which would clip the printed page. */
+    body:has(.print-sheet) {
+      overflow: visible !important;
+      height: auto !important;
+      background: none !important;
+    }
+
+    /* The modal backdrop sits next to the panel inside the portal wrapper. */
+    body:has(.print-sheet) .print-hide-backdrop {
+      display: none !important;
+    }
+
+    /* Un-clip the panel so a long receipt is not truncated mid-page. */
+    body:has(.print-sheet) .print-panel {
+      display: block !important;
+      position: static !important;
+      max-height: none !important;
+      overflow: visible !important;
+      box-shadow: none !important;
+      border: 0 !important;
+      border-radius: 0 !important;
+      background: none !important;
+    }
+
+    body:has(.print-sheet) .print-panel-body {
+      display: block !important;
+      overflow: visible !important;
+      max-height: none !important;
+      padding: 0 !important;
+    }
+
+    /* Drop the on-screen "card" chrome so the receipt reads like thermal paper. */
+    body:has(.print-sheet) .print-sheet {
+      display: block !important;
+      margin: 0 !important;
+      width: auto !important;
+      border: 0 !important;
+      border-radius: 0 !important;
+      background: none !important;
+      box-shadow: none !important;
+      color: #111 !important;
+      font-family: sans-serif !important;
+      font-size: 9pt !important;
+    }
+
+    body:has(.print-sheet) .print-sheet * {
+      color: #111 !important;
+      border-color: #999 !important;
+      font-size: 9pt !important;
+    }
+
+    body:has(.print-sheet) .print-brand-footer {
+      font-size: 8pt !important;
+    }
+
+    body:has(.print-sheet) .print-sheet .print-flat {
+      background: none !important;
+      border: 0 !important;
+      border-radius: 0 !important;
+      padding: 0 !important;
+    }
+
+    @page {
+      margin: 8mm;
+    }
   }
 }

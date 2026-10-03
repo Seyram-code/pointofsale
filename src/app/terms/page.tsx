@@ -19,7 +19,7 @@ export default function TermsPage() {
       </section>
       <section>
         <h2>Using the service</h2>
-        <p>Use MyPOS only for lawful business operations and in accordance with the permissions assigned to you. Do not attempt to bypass access controls, disrupt the service, introduce malicious code, or access another shop’s information without authorisation.</p>
+        <p>Use VidyPOS only for lawful business operations and in accordance with the permissions assigned to you. Do not attempt to bypass access controls, disrupt the service, introduce malicious code, or access another shop’s information without authorisation.</p>
       </section>
       <section>
         <h2>Your shop’s information</h2>
@@ -31,7 +31,7 @@ export default function TermsPage() {
       </section>
       <section>
         <h2>Payments and business records</h2>
-        <p>Payment methods and processing options depend on what is configured for your shop. External payment providers may apply their own terms. Your shop is responsible for reviewing sales, tax settings, stock levels and reports for accuracy; MyPOS is an operational tool and does not replace professional accounting, tax or legal advice.</p>
+        <p>Payment methods and processing options depend on what is configured for your shop. External payment providers may apply their own terms. Your shop is responsible for reviewing sales, tax settings, stock levels and reports for accuracy; VidyPOS is an operational tool and does not replace professional accounting, tax or legal advice.</p>
       </section>
       <section>
         <h2>Availability and changes</h2>
@@ -43,7 +43,7 @@ export default function TermsPage() {
       </section>
       <section>
         <h2>Liability and applicable law</h2>
-        <p>The service is provided subject to warranties and protections that cannot be excluded under applicable law. To the extent permitted by law, MyPOS is not responsible for indirect loss arising from use of the service, incorrect information entered by users, or interruptions outside reasonable control. These terms do not limit liability where such a limit is prohibited by law.</p>
+        <p>The service is provided subject to warranties and protections that cannot be excluded under applicable law. To the extent permitted by law, VidyPOS is not responsible for indirect loss arising from use of the service, incorrect information entered by users, or interruptions outside reasonable control. These terms do not limit liability where such a limit is prohibited by law.</p>
         <p>Applicable consumer, privacy and business laws continue to apply. Any dispute should first be raised with the shop administrator or through the support contact configured for the shop.</p>
       </section>
       <section>

@@ -2,7 +2,7 @@ import "server-only";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { hasAnyPermission, hasPermission, type Permission } from "@/lib/auth/permissions";
-import { hasSubscriptionAccess } from "@/lib/services/subscription.service";
+import { requirePlanFeature as checkPlanFeature, type PlanFeatureKey } from "@/lib/services/subscription.service";
 import type { AuthenticatedSession } from "@/lib/auth/types";
 
 export class UnauthorizedError extends Error {
@@ -56,7 +56,7 @@ export async function requirePermission(
 /** For route handlers — throws instead of redirecting so the API can return JSON. */
 export async function authorize(
   permission?: Permission | Permission[],
-  options: { any?: boolean; allowExpiredSubscription?: boolean } = {},
+  options: { any?: boolean; allowExpiredSubscription?: boolean; planFeature?: PlanFeatureKey } = {},
 ): Promise<AuthenticatedSession> {
   const session = await getSession();
   if (!session) throw new UnauthorizedError();
@@ -67,9 +67,13 @@ export async function authorize(
   if (
     !options.allowExpiredSubscription &&
     session.user.role !== "SUPER_ADMIN" &&
-    !(await hasSubscriptionAccess(session.user.storeId))
+    !session.user.subscriptionActive
   ) {
     throw new ForbiddenError("Your subscription has expired. Renew it to continue using the shop.");
+  }
+  if (options.planFeature && session.user.role !== "SUPER_ADMIN") {
+    const feature = await checkPlanFeature(session.user.storeId, options.planFeature);
+    if (!feature.allowed) throw new ForbiddenError(feature.message);
   }
   if (!permission) return session;
 

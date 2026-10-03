@@ -2,9 +2,11 @@ import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { createSession } from "@/lib/auth/session";
 import { verifyPassword } from "@/lib/auth/password";
-import { loginSchema } from "@/lib/validations/auth.schema";
+import { loginSchema, staffAccessCodeLoginSchema } from "@/lib/validations/auth.schema";
 import { ApiError, handleApiError, ok } from "@/lib/api/response";
+import { withRequestTimeout } from "@/lib/api/request-timeout";
 import { recordAudit, requestContext } from "@/lib/services/audit.service";
+import { hashStaffAccessCode } from "@/lib/auth/staff-access-code";
 
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_MINUTES = 15;
@@ -12,21 +14,51 @@ const LOCKOUT_MINUTES = 15;
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { identifier, password, rememberDevice } = loginSchema.parse(body);
     const context = requestContext(request);
+    const isStaffLogin = typeof body === "object" && body !== null && "mode" in body && body.mode === "staff";
+    let rememberDevice: boolean;
+    let identifier = "";
+    let password = "";
+    let user;
 
-    const normalized = identifier.toLowerCase();
-    const normalizedStaffCode = identifier.replace(/\s+/g, "").toUpperCase();
-    const user = await prisma.user.findFirst({
-      where: {
-        deletedAt: null,
-        OR: [
-          { email: normalized },
-          { staffCode: normalizedStaffCode },
-          { role: "ADMIN", store: { email: normalized } },
-        ],
-      },
-    });
+    if (isStaffLogin) {
+      const credentials = staffAccessCodeLoginSchema.parse(body);
+      rememberDevice = credentials.rememberDevice;
+      user = await withRequestTimeout(
+        prisma.user.findFirst({
+          where: {
+            staffAccessCodeHash: hashStaffAccessCode(credentials.accessCode),
+            deletedAt: null,
+            employeeProfile: { isNot: null },
+          },
+        }),
+        8000,
+        "Database is unavailable or taking too long to respond.",
+      );
+    } else {
+      const credentials = loginSchema.parse(body);
+      identifier = credentials.identifier;
+      password = credentials.password;
+      rememberDevice = credentials.rememberDevice;
+
+      const normalized = identifier.toLowerCase();
+      const normalizedStaffCode = identifier.replace(/\s+/g, "").toUpperCase();
+      user = await withRequestTimeout(
+        prisma.user.findFirst({
+          where: {
+            deletedAt: null,
+            OR: [
+              { email: normalized },
+              { staffCode: normalizedStaffCode },
+              { role: "ADMIN", store: { email: normalized } },
+            ],
+            employeeProfile: { is: null },
+          },
+        }),
+        8000,
+        "Database is unavailable or taking too long to respond.",
+      );
+    }
 
     // Same generic message whether the account is missing or the password is wrong.
     const invalid = new ApiError("UNAUTHORIZED", "Invalid credentials", 401);
@@ -35,7 +67,7 @@ export async function POST(request: NextRequest) {
       await recordAudit({
         action: "LOGIN_FAILED",
         entity: "User",
-        summary: `Failed login for unknown identifier "${identifier}"`,
+        summary: isStaffLogin ? "Failed staff access-code login" : `Failed login for unknown identifier "${identifier}"`,
         ...context,
       });
       throw invalid;
@@ -49,7 +81,7 @@ export async function POST(request: NextRequest) {
       throw new ApiError("FORBIDDEN", "This account is not active. Contact your manager.", 403);
     }
 
-    if (!(await verifyPassword(password, user.passwordHash))) {
+    if (!isStaffLogin && (!user.passwordHash || !(await verifyPassword(password, user.passwordHash)))) {
       const attempts = user.failedLoginAttempts + 1;
       await prisma.user.update({
         where: { id: user.id },

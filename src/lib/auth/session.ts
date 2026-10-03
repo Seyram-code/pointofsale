@@ -80,6 +80,7 @@ export const getSession = cache(async (): Promise<AuthenticatedSession | null> =
       user: {
         include: {
           permissions: { select: { key: true, allowed: true } },
+          employeeProfile: { select: { id: true } },
           store: { select: { id: true, businessId: true, name: true, businessType: true } },
         },
       },
@@ -98,20 +99,33 @@ export const getSession = cache(async (): Promise<AuthenticatedSession | null> =
   let planKey = "STARTER";
   let scannerOnPos = false;
   let scannerOutsidePos = false;
+  let subscriptionActive = false;
   if (record.user.role === "SUPER_ADMIN") {
     planKey = "ENTERPRISE";
     scannerOnPos = true;
     scannerOutsidePos = true;
+    subscriptionActive = true;
   } else if (record.user.storeId) {
     const subscription = await prisma.storeSubscription.findFirst({
       where: { storeId: record.user.storeId },
       orderBy: { createdAt: "desc" },
-      select: { plan: true },
+      select: {
+        plan: true,
+        status: true,
+        currentPeriodEnd: true,
+        store: { select: { isActive: true } },
+      },
     });
     planKey = normalizePlanKey(subscription?.plan);
     const limits = getPlanLimits(planKey);
     scannerOnPos = limits.scannerOnPos;
     scannerOutsidePos = limits.scannerOutsidePos;
+    subscriptionActive = Boolean(
+      subscription &&
+        subscription.store.isActive &&
+        (subscription.status === "TRIALING" || subscription.status === "ACTIVE") &&
+        subscription.currentPeriodEnd >= new Date(),
+    );
   }
 
   const user: SessionUser = {
@@ -120,6 +134,7 @@ export const getSession = cache(async (): Promise<AuthenticatedSession | null> =
     email: record.user.email,
     staffCode: record.user.staffCode,
     role: record.user.role,
+    isEmployee: record.user.employeeProfile !== null,
     storeId: record.user.storeId,
     businessId: record.user.store?.businessId ?? null,
     storeName: record.user.store?.name ?? null,
@@ -128,6 +143,7 @@ export const getSession = cache(async (): Promise<AuthenticatedSession | null> =
     mustChangePassword: record.user.mustChangePassword,
     permissions: resolvePermissions(record.user.role, record.user.permissions),
     plan: planKey,
+    subscriptionActive,
     scannerOnPos,
     scannerOutsidePos,
   };

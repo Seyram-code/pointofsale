@@ -66,7 +66,7 @@ export function ReportsWorkspace({ initialData, canViewAll, currentUserId }: { i
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = `mypos-${period}-report-${data.range.from}.csv`;
+    link.download = `vidypos-${period}-report-${data.range.from}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   }

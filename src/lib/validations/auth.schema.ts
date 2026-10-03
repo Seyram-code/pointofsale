@@ -8,6 +8,12 @@ export const loginSchema = z.object({
 
 export type LoginInput = z.infer<typeof loginSchema>;
 
+export const staffAccessCodeLoginSchema = z.object({
+  mode: z.literal("staff"),
+  accessCode: z.string().trim().toUpperCase().regex(/^[A-Z]{3}\d{3}$/, "Enter a valid six-character staff access code"),
+  rememberDevice: z.boolean().optional().default(false),
+});
+
 export const pinLoginSchema = z.object({
   staffCode: z.string().trim().min(2).max(30),
   pin: z.string().regex(/^\d{4,6}$/, "PIN must be 4-6 digits"),

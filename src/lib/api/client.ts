@@ -1,4 +1,5 @@
 import type { ApiResponse } from "@/lib/api/response";
+import { withRequestTimeout } from "@/lib/api/request-timeout";
 
 export class ApiClientError extends Error {
   constructor(
@@ -13,28 +14,46 @@ export class ApiClientError extends Error {
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(path.startsWith("http") ? path : `/api${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init.headers ?? {}),
-    },
-    credentials: "same-origin",
-  });
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 8000);
 
-  const payload = (await response.json().catch(() => null)) as ApiResponse<T> | null;
-
-  if (!response.ok || !payload || payload.success === false) {
-    const error = payload && payload.success === false ? payload.error : null;
-    throw new ApiClientError(
-      error?.code ?? "INTERNAL_ERROR",
-      error?.message ?? "Request failed",
-      response.status,
-      error?.details,
+  try {
+    const response = await withRequestTimeout(
+      fetch(path.startsWith("http") ? path : `/api${path}`, {
+        ...init,
+        headers: {
+          "Content-Type": "application/json",
+          ...(init.headers ?? {}),
+        },
+        credentials: "same-origin",
+        signal: controller.signal,
+      }),
+      8000,
+      "The server took too long to respond. Please try again.",
     );
-  }
 
-  return payload.data;
+    const payload = (await response.json().catch(() => null)) as ApiResponse<T> | null;
+
+    if (!response.ok || !payload || payload.success === false) {
+      const error = payload && payload.success === false ? payload.error : null;
+      throw new ApiClientError(
+        error?.code ?? "INTERNAL_ERROR",
+        error?.message ?? "Request failed",
+        response.status,
+        error?.details,
+      );
+    }
+
+    return payload.data;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new ApiClientError("TIMEOUT", "The server took too long to respond. Please try again.", 504);
+    }
+
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }
 
 export const api = {

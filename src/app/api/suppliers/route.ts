@@ -23,7 +23,7 @@ const supplierSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await authorize(PERMISSIONS.SUPPLIERS_MANAGE);
+    const session = await authorize(PERMISSIONS.SUPPLIERS_MANAGE, { planFeature: "suppliers" });
     const storeId = session.user.storeId;
     if (!storeId) throw ApiError.badRequest("Your account is not linked to a store");
     const input = supplierSchema.parse(await request.json());
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   try {
-    const session = await authorize(PERMISSIONS.SUPPLIERS_VIEW);
+    const session = await authorize(PERMISSIONS.SUPPLIERS_VIEW, { planFeature: "suppliers" });
     if (!session.user.storeId) return ok([]);
     const suppliers = await prisma.supplier.findMany({
       where: { storeId: session.user.storeId, deletedAt: null },

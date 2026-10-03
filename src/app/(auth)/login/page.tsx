@@ -29,7 +29,7 @@ export default function LoginPage() {
       <p className="mt-6 text-center text-xs text-fg-muted">
         Authorised staff only. All sign-in activity is recorded.
       </p>
-      <p className="mt-3 text-center text-sm text-fg-muted">New shop or supermarket? <Link href="/register" className="font-medium text-brand-600 hover:underline">Create your portal</Link></p>
+      <p className="mt-3 text-center text-sm text-fg-muted">New shop, pharmacy or supermarket? <Link href="/register" className="font-medium text-brand-600 hover:underline">Create your portal</Link></p>
     </div>
   );
 }

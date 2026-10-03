@@ -24,8 +24,9 @@ export function ShopActivationForm() {
     setLoading(true);
     try {
       await api.post("/auth/activate-shop", { email, code });
-      setMessage("Your shop is activated. You can now sign in.");
-      window.setTimeout(() => router.replace("/login"), 900);
+      setMessage("Your shop is activated. Opening your dashboard...");
+      router.replace("/dashboard");
+      router.refresh();
     } catch (activationError) {
       setError(activationError instanceof ApiClientError ? activationError.message : "Could not activate your shop. Try again.");
       setLoading(false);

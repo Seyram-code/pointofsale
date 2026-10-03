@@ -96,10 +96,11 @@ export const NAV_SECTIONS: NavSection[] = [
   },
 ];
 
-export function visibleSections(permissions: readonly string[], role?: UserRole): NavSection[] {
+export function visibleSections(permissions: readonly string[], role?: UserRole, isEmployee = false): NavSection[] {
   return NAV_SECTIONS.map((section) => ({
     ...section,
     items: section.items.filter((item) => {
+      if (isEmployee && ["/subscription", "/sales"].includes(item.href)) return false;
       if (item.role && item.role !== role) {
         return false;
       }
@@ -111,7 +112,7 @@ export function visibleSections(permissions: readonly string[], role?: UserRole)
   })).filter((section) => section.items.length > 0);
 }
 
-export function mobileNavItems(permissions: readonly string[], role?: UserRole): NavItem[] {
+export function mobileNavItems(permissions: readonly string[], role?: UserRole, isEmployee = false): NavItem[] {
   const items = NAV_SECTIONS.flatMap((section) => section.items);
 
   if (role === "SUPER_ADMIN") {
@@ -120,6 +121,7 @@ export function mobileNavItems(permissions: readonly string[], role?: UserRole):
 
   return items
     .filter((item) => !item.role || item.role === role)
+    .filter((item) => !isEmployee || !["/subscription", "/sales"].includes(item.href))
     .filter((item) => item.primary && (!item.permission || permissions.includes(item.permission)))
     .slice(0, 5);
 }

@@ -44,8 +44,8 @@ export function serverEnv() {
 
 /** Values safe to expose to the browser. */
 export const publicEnv = {
-  appName: process.env.NEXT_PUBLIC_APP_NAME ?? "MyPOS",
-  businessName: process.env.NEXT_PUBLIC_BUSINESS_NAME ?? "MyPOS Supermarket",
+  appName: process.env.NEXT_PUBLIC_APP_NAME ?? "VidyPOS",
+  businessName: process.env.NEXT_PUBLIC_BUSINESS_NAME ?? "VidyPOS Supermarket",
   businessTagline: process.env.NEXT_PUBLIC_BUSINESS_TAGLINE ?? "Point of Sale",
   supportContact: process.env.NEXT_PUBLIC_SUPPORT_CONTACT ?? "",
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",

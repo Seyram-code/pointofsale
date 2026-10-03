@@ -17,6 +17,9 @@ import { PaymentDialog, type CheckoutPaymentInput, type CheckoutResponse } from 
 import { CameraBarcodeScanner } from "@/components/pos/CameraBarcodeScanner";
 import { useCart, type CartLine } from "@/hooks/useCart";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
+import { useCurrentUser } from "@/components/providers/SessionProvider";
+import { getPlanLimits } from "@/lib/config/plan-features";
+import { getPlanFeatureStatus } from "@/lib/config/platform-features";
 import { api, ApiClientError, buildQuery } from "@/lib/api/client";
 import type { PosProduct } from "@/lib/services/product.service";
 import type { PaymentMethod } from "@/lib/payments/types";
@@ -77,6 +80,10 @@ const SHORTCUTS = [
 export function PosTerminal({ categories, permissions, paymentMethods, mockPaymentDriver }: PosTerminalProps) {
   const toast = useToast();
   const cart = useCart();
+  const currentUser = useCurrentUser();
+  const scannerEnabled = currentUser.scannerOnPos;
+  const customersEnabled = getPlanLimits(currentUser.plan).customers;
+  const offlineEnabled = getPlanFeatureStatus(currentUser.plan, "offlinePos");
 
   const barcodeRef = useRef<HTMLInputElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -115,6 +122,10 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockPayme
   }, []);
 
   const saveOfflineDraft = useCallback(() => {
+    if (!offlineEnabled) {
+      toast.error("Offline POS is not included", "Upgrade your plan to save sales while offline.");
+      return;
+    }
     if (cart.lines.length === 0) return;
     const draft: OfflineDraftPayload = {
       id: crypto.randomUUID(),
@@ -127,10 +138,10 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockPayme
     cart.clear();
     setCheckoutOpen(false);
     toast.success("Sale saved offline", "It will sync when the connection returns.");
-  }, [cart, readOfflineDrafts, toast, writeOfflineDrafts]);
+  }, [cart, offlineEnabled, readOfflineDrafts, toast, writeOfflineDrafts]);
 
   const syncOfflineDrafts = useCallback(async () => {
-    if (!navigator.onLine) return;
+    if (!offlineEnabled || !navigator.onLine) return;
     const drafts = readOfflineDrafts();
     if (drafts.length === 0) return;
     const remaining: OfflineDraftPayload[] = [];
@@ -142,7 +153,7 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockPayme
       }
     }
     writeOfflineDrafts(remaining);
-  }, [readOfflineDrafts, writeOfflineDrafts]);
+  }, [offlineEnabled, readOfflineDrafts, writeOfflineDrafts]);
 
   useEffect(() => {
     setOnline(navigator.onLine);
@@ -213,6 +224,7 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockPayme
 
   const scanBarcode = useCallback(
     async (code: string) => {
+      if (!scannerEnabled) return;
       const trimmed = code.trim();
       if (!trimmed) return;
 
@@ -232,7 +244,7 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockPayme
         barcodeRef.current?.focus();
       }
     },
-    [addProduct, toast],
+    [addProduct, scannerEnabled, toast],
   );
 
   const scanCameraBarcode = useCallback(
@@ -244,7 +256,7 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockPayme
   );
 
   // Catches hardware scanners even when focus has drifted away from the barcode box.
-  useBarcodeScanner({ onScan: scanBarcode, enabled: !checkoutOpen && !customerOpen && !heldOpen });
+  useBarcodeScanner({ onScan: scanBarcode, enabled: scannerEnabled && !checkoutOpen && !customerOpen && !heldOpen });
 
   const holdSale = useCallback(async () => {
     if (cart.lines.length === 0 || !permissions.canHold) return;
@@ -313,18 +325,21 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockPayme
           resumeSaleId: cart.resumedSaleId ?? undefined,
         });
       } catch (error) {
-        if (!(error instanceof ApiClientError) && !navigator.onLine) saveOfflineDraft();
+        if (!(error instanceof ApiClientError) && !navigator.onLine) {
+          if (offlineEnabled) saveOfflineDraft();
+          else toast.error("Connection lost", "Offline sales are not available on your plan.");
+        }
         throw error;
       }
     },
-    [cart, saveOfflineDraft],
+    [cart, offlineEnabled, saveOfflineDraft, toast],
   );
 
   const finishSale = useCallback(() => {
     cart.clear();
     setCheckoutOpen(false);
     setCartOpen(false);
-    barcodeRef.current?.focus();
+    searchRef.current?.focus();
   }, [cart]);
 
   useEffect(() => {
@@ -336,7 +351,7 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockPayme
         F2: () => searchRef.current?.focus(),
         F3: () => barcodeRef.current?.focus(),
         F4: () => void holdSale(),
-        F6: () => setCustomerOpen(true),
+        F6: () => customersEnabled && setCustomerOpen(true),
         F7: () => permissions.canDiscount && setDiscountOpen(true),
         F8: () => cart.lines.length > 0 && setCheckoutOpen(true),
         F9: () => cart.lines.length > 0 && setClearOpen(true),
@@ -350,10 +365,10 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockPayme
 
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [cart.lines.length, holdSale, permissions.canDiscount]);
+  }, [cart.lines.length, customersEnabled, holdSale, permissions.canDiscount]);
 
   useEffect(() => {
-    barcodeRef.current?.focus();
+    searchRef.current?.focus();
   }, []);
 
   return (
@@ -367,7 +382,7 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockPayme
             onSearch={setQuery}
             className="flex-1"
           />
-          <Input
+          {scannerEnabled && <Input
             ref={barcodeRef}
             value={barcode}
             placeholder="Scan or type barcode, then press Enter"
@@ -382,8 +397,8 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockPayme
               event.preventDefault();
               void scanBarcode(barcode);
             }}
-          />
-          <button
+          />}
+          {scannerEnabled && <button
             type="button"
             onClick={() => setCameraOpen(true)}
             aria-label="Scan barcode with camera"
@@ -391,7 +406,7 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockPayme
           >
             <Camera className="size-4" />
             <span className="sm:hidden">Camera scan</span>
-          </button>
+          </button>}
         </div>
 
         <div className="no-scrollbar -mx-1 flex shrink-0 gap-1.5 overflow-x-auto px-1 pb-0.5">
@@ -423,8 +438,8 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockPayme
         </div>
         <div className="flex items-center gap-2 text-xs text-fg-muted">
           <CloudOff className={cn("size-3.5", online ? "text-fg-muted" : "text-warning")} />
-          <span>{online ? "Online" : "Offline mode"}{offlineDraftCount > 0 ? ` · ${offlineDraftCount} pending` : ""}</span>
-          {cart.lines.length > 0 && !online && (
+          <span>{online ? "Online" : offlineEnabled ? "Offline mode" : "Offline unavailable"}{offlineEnabled && offlineDraftCount > 0 ? ` · ${offlineDraftCount} pending` : ""}</span>
+          {offlineEnabled && cart.lines.length > 0 && !online && (
             <button type="button" onClick={saveOfflineDraft} className="ml-auto font-medium text-brand-600 hover:underline">
               Save draft
             </button>
@@ -447,6 +462,7 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockPayme
           selectedProductId={selectedProductId}
           onSelectLine={setSelectedProductId}
           onOpenCustomer={() => setCustomerOpen(true)}
+          canSelectCustomer={customersEnabled}
           onOpenDiscount={() => setDiscountOpen(true)}
           onHold={holdSale}
           onClear={() => setClearOpen(true)}
@@ -479,7 +495,7 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockPayme
         </button>
       </div>
 
-      <CustomerPicker open={customerOpen} onClose={() => setCustomerOpen(false)} onSelect={cart.setCustomer} />
+      {customersEnabled && <CustomerPicker open={customerOpen} onClose={() => setCustomerOpen(false)} onSelect={cart.setCustomer} />}
 
       <DiscountDialog
         open={discountOpen}

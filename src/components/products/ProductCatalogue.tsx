@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import Link from "next/link";
-import { Barcode, Pencil, Plus, Trash2 } from "lucide-react";
+import { Barcode, Download, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
@@ -21,9 +21,16 @@ interface ProductCatalogueProps {
   categories: Array<{ id: string; name: string; productCount: number }>;
   canEdit: boolean;
   canDelete: boolean;
+  canImport: boolean;
 }
 
-export function ProductCatalogue({ initialProducts, categories, canEdit, canDelete }: ProductCatalogueProps) {
+interface ProductImportResult {
+  imported: number;
+  skipped: number;
+  issues: Array<{ row: number; message: string }>;
+}
+
+export function ProductCatalogue({ initialProducts, categories, canEdit, canDelete, canImport }: ProductCatalogueProps) {
   const [products, setProducts] = useState(initialProducts);
   const [query, setQuery] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
@@ -31,10 +38,57 @@ export function ProductCatalogue({ initialProducts, categories, canEdit, canDele
   const [editingProduct, setEditingProduct] = useState<PosProduct | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<PosProduct | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<ProductImportResult | null>(null);
+  const [importError, setImportError] = useState("");
+  const importFileRef = useRef<HTMLInputElement>(null);
 
   function replaceProduct(updated: PosProduct) {
     setProducts((current) => current.map((product) => product.id === updated.id ? updated : product));
     setEditingProduct(null);
+  }
+
+  function downloadProductBackup() {
+    window.location.assign("/api/products/backup");
+  }
+
+  function downloadImportTemplate() {
+    window.location.assign("/api/products/import");
+  }
+
+  async function importProductBackup(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file) return;
+    setImportError("");
+    setImportResult(null);
+    if (!file.name.toLocaleLowerCase().endsWith(".xlsx")) {
+      setImportError("Choose an Excel .xlsx product backup file.");
+      return;
+    }
+
+    const form = new FormData();
+    form.append("file", file);
+    setImporting(true);
+    try {
+      const response = await fetch("/api/products/import", { method: "POST", body: form, credentials: "same-origin" });
+      const payload = await response.json();
+      if (!response.ok || payload.success === false) {
+        throw new Error(payload.error?.message ?? "Could not import this workbook.");
+      }
+      const result = payload.data as ProductImportResult;
+      setImportResult(result);
+      try {
+        const refreshed = await api.get<PosProduct[]>(`/products/search${buildQuery({ q: query, categoryId, limit: 60 })}`);
+        setProducts(refreshed);
+      } catch {
+        setImportError("Products were imported, but the catalogue did not refresh. Reload the page to see them.");
+      }
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : "Could not import this workbook.");
+    } finally {
+      setImporting(false);
+    }
   }
 
   async function deleteProduct() {
@@ -58,7 +112,7 @@ export function ProductCatalogue({ initialProducts, categories, canEdit, canDele
     let cancelled = false;
     setLoading(true);
     api
-      .get<PosProduct[]>(`/products/search${buildQuery({ q: query, categoryId, limit: 100 })}`)
+      .get<PosProduct[]>(`/products/search${buildQuery({ q: query, categoryId, limit: 60 })}`)
       .then((data) => !cancelled && setProducts(data))
       .finally(() => !cancelled && setLoading(false));
 
@@ -127,8 +181,22 @@ export function ProductCatalogue({ initialProducts, categories, canEdit, canDele
       <PageHeader
         title="Products"
         description="Manage your catalogue, pricing, SKUs and barcodes."
-        actions={<Link href="/products/new" className="inline-flex h-11 items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white shadow-sm hover:bg-brand-700"><Plus className="size-4" />Add product</Link>}
+        actions={<div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" leftIcon={<Download className="size-4" />} onClick={downloadProductBackup}>Download product backup</Button>
+          {canImport && <Button type="button" variant="outline" leftIcon={<Download className="size-4" />} onClick={downloadImportTemplate}>Download import template</Button>}
+          {canImport && <Button type="button" variant="outline" loading={importing} leftIcon={<Upload className="size-4" />} onClick={() => importFileRef.current?.click()}>Import products</Button>}
+          <Link href="/products/new" className="inline-flex h-11 items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white shadow-sm hover:bg-brand-700"><Plus className="size-4" />Add product</Link>
+        </div>}
       />
+      {canImport && <input ref={importFileRef} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="sr-only" onChange={(event) => void importProductBackup(event)} />}
+      {importError && <p role="alert" className="mb-4 rounded-lg border border-danger/20 bg-danger/5 px-4 py-3 text-sm text-danger">{importError}</p>}
+      {importResult && <div role="status" className="mb-4 rounded-lg border border-line bg-card px-4 py-3 text-sm text-fg-secondary">
+        <p>Imported {importResult.imported} product{importResult.imported === 1 ? "" : "s"}; skipped {importResult.skipped}. Existing products were not overwritten.</p>
+        {importResult.issues.length > 0 && <ul className="mt-2 list-inside list-disc space-y-1 text-xs text-fg-muted">
+          {importResult.issues.slice(0, 5).map((issue, index) => <li key={`${issue.row}-${index}`}>Row {issue.row}: {issue.message}</li>)}
+          {importResult.issues.length > 5 && <li>{importResult.issues.length - 5} more issue{importResult.issues.length - 5 === 1 ? "" : "s"}.</li>}
+        </ul>}
+      </div>}
       <Card>
         <CardHeader className="flex-col gap-3 sm:flex-row sm:items-center">
           <Tabs

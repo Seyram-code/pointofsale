@@ -40,8 +40,12 @@ export interface CheckoutResponse {
   changeDue: number;
   payments: Array<{ method: string; state: string; message?: string; failureReason?: string }>;
   receipt: {
-    store: { name: string; addressLine: string | null; city: string | null; phone: string | null; receiptFooter: string | null };
-    items: Array<{ name: string; quantity: number; unitPrice: number; lineTotal: number }>;
+    receiptNumber: string;
+    issuedAt: string;
+    store: { name: string; branchCode: string; addressLine: string | null; city: string | null; phone: string | null; tinNumber: string | null; vatNumber: string | null; footer: string | null };
+    cashier: string;
+    currency: string;
+    items: Array<{ name: string; sku: string; quantity: number; unitPrice: number; lineTotal: number }>;
     totals: { subtotal: number; discount: number; tax: number; total: number; amountPaid: number; changeDue: number };
     payments: Array<{ label: string; amount: number; tenderedAmount: number | null }>;
   } | null;
@@ -166,9 +170,15 @@ export function PaymentDialog({
     }
   }
 
+  function printReceipt() {
+    window.addEventListener("afterprint", onFinish, { once: true });
+    window.print();
+  }
+
   if (result?.status === "COMPLETED") {
     const receipt = result.receipt;
-    const tendered = receipt?.payments.reduce((sum, payment) => sum + (payment.tenderedAmount ?? payment.amount), 0) ?? result.amountPaid;
+    const hasCashTender = receipt?.payments.some((payment) => payment.tenderedAmount !== null) ?? false;
+    const tendered = receipt?.payments.reduce((sum, payment) => sum + (payment.tenderedAmount ?? 0), 0) ?? 0;
 
     return (
       <Modal
@@ -177,7 +187,7 @@ export function PaymentDialog({
         size="sm"
         closeOnBackdrop={false}
         footer={
-          <div className="mb-2 grid w-full grid-cols-3 gap-2 sm:mb-3 sm:flex sm:w-auto sm:gap-4">
+          <div className="no-print mb-2 grid w-full grid-cols-3 gap-2 sm:mb-3 sm:flex sm:w-auto sm:gap-4">
             <Button variant="ghost" className="min-w-0 w-full px-2 text-sm sm:w-auto sm:px-4" onClick={onFinish}>
               Close
             </Button>
@@ -185,7 +195,7 @@ export function PaymentDialog({
               variant="outline"
               className="min-w-0 w-full px-2 text-sm sm:w-auto sm:px-4"
               leftIcon={<Printer className="size-4" />}
-              onClick={() => window.print()}
+              onClick={printReceipt}
             >
               Print
             </Button>
@@ -196,35 +206,44 @@ export function PaymentDialog({
         }
       >
         <div className="flex flex-col items-center py-2 text-center">
-          <span className="mb-3 flex size-14 items-center justify-center rounded-full bg-brand-50 text-success dark:bg-brand-950">
-            <CheckCircle2 className="size-8" />
-          </span>
-          <p className="text-lg font-semibold text-fg">Sale completed</p>
-          <p className="mt-1 text-sm text-fg-muted">{result.receiptNumber}</p>
+          <div className="no-print">
+            <span className="mb-3 flex size-14 items-center justify-center rounded-full bg-brand-50 text-success dark:bg-brand-950">
+              <CheckCircle2 className="size-8" />
+            </span>
+            <p className="text-lg font-semibold text-fg">Sale completed</p>
+            <p className="mt-1 text-sm text-fg-muted">{result.receiptNumber}</p>
+          </div>
 
           {receipt && (
-            <div className="mt-5 w-full space-y-4 text-left">
-              <div className="rounded-xl border border-line bg-muted px-4 py-3 text-sm">
+            <div className="print-sheet mt-5 w-full space-y-4 text-left text-sm">
+              <div className="print-flat rounded-xl border border-line bg-muted px-4 py-3">
                 <div className="mb-4 text-center text-fg">
-                  <p className="font-semibold">{receipt.store.name}</p>
+                  <p className="font-bold">{receipt.store.name}</p>
+                  <p>Branch: {receipt.store.branchCode}</p>
                   {receipt.store.addressLine && <p>{receipt.store.addressLine}{receipt.store.city ? `, ${receipt.store.city}` : ""}</p>}
                   {receipt.store.phone && <p>{receipt.store.phone}</p>}
+                  {receipt.store.tinNumber && <p>TIN: {receipt.store.tinNumber}</p>}
+                  {receipt.store.vatNumber && <p>VAT: {receipt.store.vatNumber}</p>}
+                  <p className="mt-2 font-semibold">Receipt: {receipt.receiptNumber || result.receiptNumber}</p>
+                  <p>{new Date(receipt.issuedAt).toLocaleString()}</p>
+                  <p>Cashier: {receipt.cashier}</p>
                 </div>
                 <p className="mb-2 font-semibold text-fg">Items purchased</p>
                 <div className="space-y-2">
-                  {receipt.items.map((item) => (
-                    <div key={`${item.name}-${item.quantity}-${item.lineTotal}`} className="flex justify-between gap-3">
-                      <span className="min-w-0 text-fg-secondary">{item.quantity} x {item.name}</span>
+                  {receipt.items.map((item, index) => (
+                    <div key={`${item.sku}-${index}`} className="flex justify-between gap-3 border-b border-dashed border-line pb-1.5 last:border-0">
+                      <span className="min-w-0 text-fg-secondary">{item.quantity} x {item.name} <span className="block text-xs">@ <Money value={item.unitPrice} /></span></span>
                       <Money value={item.lineTotal} className="shrink-0 font-medium text-fg" />
                     </div>
                   ))}
                 </div>
               </div>
 
-              <dl className="space-y-2 rounded-xl bg-muted p-4 text-sm">
+              <dl className="print-flat space-y-2 rounded-xl bg-muted p-4 text-sm">
                 <div className="flex justify-between"><dt className="text-fg-secondary">Subtotal</dt><dd><Money value={receipt.totals.subtotal} /></dd></div>
+                {receipt.totals.discount > 0 && <div className="flex justify-between"><dt className="text-fg-secondary">Discount</dt><dd>-<Money value={receipt.totals.discount} /></dd></div>}
                 <div className="flex justify-between"><dt className="text-fg-secondary">Tax</dt><dd><Money value={receipt.totals.tax} /></dd></div>
-                {receipt.payments.some((payment) => payment.tenderedAmount !== null) && <div className="flex justify-between"><dt className="text-fg-secondary">Amount tendered</dt><dd><Money value={tendered} /></dd></div>}
+                {hasCashTender && <div className="flex justify-between"><dt className="text-fg-secondary">Amount tendered</dt><dd><Money value={tendered} /></dd></div>}
                 <div className="flex justify-between"><dt className="text-fg-secondary">Balance</dt><dd><Money value={receipt.totals.changeDue} className="font-semibold text-success" /></dd></div>
                 <div className="flex justify-between border-t border-line pt-2 font-semibold"><dt className="text-fg">Total</dt><dd><Money value={receipt.totals.total} /></dd></div>
               </dl>
@@ -233,7 +252,8 @@ export function PaymentDialog({
                 <span className="text-fg-secondary">Mode of payment</span>
                 <span className="text-right font-medium text-fg">{receipt.payments.map((payment) => payment.label).join(", ")}</span>
               </div>
-              {receipt.store.receiptFooter && <p className="text-center text-xs text-fg-muted">{receipt.store.receiptFooter}</p>}
+              {receipt.store.footer && <p className="text-center text-xs text-fg-muted">{receipt.store.footer}</p>}
+              <p className="print-brand-footer mt-2 text-center text-xs text-fg-muted">POS by First Dest (0598925563)</p>
             </div>
           )}
         </div>

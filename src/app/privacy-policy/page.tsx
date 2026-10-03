@@ -15,7 +15,7 @@ export default function PrivacyPolicyPage() {
     >
       <section>
         <h2>Information handled by the service</h2>
-        <p>Depending on how your shop uses MyPOS, information may include account and staff details, shop settings, products and stock, sales and payment records, customer details entered by your shop, and audit or support activity.</p>
+        <p>Depending on how your shop uses VidyPOS, information may include account and staff details, shop settings, products and stock, sales and payment records, customer details entered by your shop, and audit or support activity.</p>
         <p>The service also uses essential session information to keep authorised users signed in. If you choose “Remember me,” your sign-in identifier may be saved on that device; your password is not saved by that option.</p>
       </section>
       <section>
@@ -29,7 +29,7 @@ export default function PrivacyPolicyPage() {
       </section>
       <section>
         <h2>Shop and customer records</h2>
-        <p>Your shop controls the business records its staff enter into MyPOS. Shop administrators are responsible for providing appropriate notices and having a lawful basis before adding staff or customer information. Staff should only access records needed for their work.</p>
+        <p>Your shop controls the business records its staff enter into VidyPOS. Shop administrators are responsible for providing appropriate notices and having a lawful basis before adding staff or customer information. Staff should only access records needed for their work.</p>
       </section>
       <section>
         <h2>Service providers and disclosure</h2>
@@ -41,7 +41,7 @@ export default function PrivacyPolicyPage() {
       </section>
       <section>
         <h2>Your choices and requests</h2>
-        <p>Staff should contact their shop administrator to correct or remove information held in the shop account. Shop administrators can manage user access and business records. Requests relating to the operation of the MyPOS service can be made through the support contact provided by your shop.</p>
+        <p>Staff should contact their shop administrator to correct or remove information held in the shop account. Shop administrators can manage user access and business records. Requests relating to the operation of the VidyPOS service can be made through the support contact provided by your shop.</p>
       </section>
       <section>
         <h2>Updates and contact</h2>

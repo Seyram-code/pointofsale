@@ -20,7 +20,7 @@ const customerSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await authorize(PERMISSIONS.CUSTOMERS_MANAGE);
+    const session = await authorize(PERMISSIONS.CUSTOMERS_MANAGE, { planFeature: "customers" });
     const storeId = session.user.storeId;
     if (!storeId) throw ApiError.badRequest("Your account is not linked to a store");
     const input = customerSchema.parse(await request.json());
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   try {
-    const session = await authorize(PERMISSIONS.CUSTOMERS_VIEW);
+    const session = await authorize(PERMISSIONS.CUSTOMERS_VIEW, { planFeature: "customers" });
     if (!session.user.storeId) return ok([]);
     const customers = await prisma.customer.findMany({
       where: { storeId: session.user.storeId, deletedAt: null },

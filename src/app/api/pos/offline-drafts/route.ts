@@ -23,7 +23,7 @@ const draftSchema = z.object({
 
 export async function GET() {
   try {
-    const session = await authorize(PERMISSIONS.POS_SELL);
+    const session = await authorize(PERMISSIONS.POS_SELL, { planFeature: "offlinePos" });
     if (!session.user.storeId) throw new Error("Store is required");
 
     const drafts = await prisma.offlineSaleDraft.findMany({
@@ -40,7 +40,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await authorize(PERMISSIONS.POS_SELL);
+    const session = await authorize(PERMISSIONS.POS_SELL, { planFeature: "offlinePos" });
     if (!session.user.storeId) throw new Error("Store is required");
 
     const input = draftSchema.parse(await request.json());

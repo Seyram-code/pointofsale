@@ -10,6 +10,9 @@ const SUPPORT_PRESENCE = "20260928110000_add_support_typing_presence";
 const SUPPORT_READ_AT = "20260928130000_add_support_message_read_at";
 const STORE_TAX_RATES = "20260929150000_store_specific_tax_rates";
 const UNIQUE_PRODUCT_NAME = "20260930100000_unique_product_name_per_store";
+const STAFF_ACCESS_CODE = "20261002120000_add_staff_access_code";
+const ACCESS_CODE_ONLY_EMPLOYEES = "20261002130000_allow_access_code_only_employees";
+const ENCRYPTED_STAFF_ACCESS_CODES = "20261002140000_store_encrypted_staff_access_codes";
 const STORE_EMAIL_ACTIVATION = "20261003100000_add_store_email_activation";
 let connection;
 
@@ -145,6 +148,45 @@ async function reconcileStoreEmailActivation(tables, applied) {
   }
 }
 
+async function reconcileStaffAccessCodeSchema(tables, applied) {
+  if (!tables.has("User")) return;
+
+  const columns = await query("SELECT COLUMN_NAME AS columnName, IS_NULLABLE AS isNullable FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'User'");
+  const columnMap = new Map(columns.map((column) => [column.columnName, column]));
+  const indexes = await query("SELECT INDEX_NAME AS indexName FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'User' GROUP BY INDEX_NAME");
+  const indexNames = new Set(indexes.map((index) => index.indexName));
+  const hasHashColumn = columnMap.has("staffAccessCodeHash");
+  const hasEncryptedColumn = columnMap.has("staffAccessCodeEncrypted");
+  const hasHashIndex = indexNames.has("User_staffAccessCodeHash_key");
+  const emailIsNullable = columnMap.get("email")?.isNullable === "YES";
+  const passwordIsNullable = columnMap.get("passwordHash")?.isNullable === "YES";
+
+  if (hasHashColumn !== hasHashIndex || emailIsNullable !== passwordIsNullable) {
+    throw new Error("The imported staff access-code schema is partial; inspect the User table before deploying.");
+  }
+  if (applied.has(STAFF_ACCESS_CODE) && (!hasHashColumn || !hasHashIndex)) {
+    throw new Error("The staff access-code migration is recorded as applied, but its column or unique index is missing.");
+  }
+  if (!applied.has(STAFF_ACCESS_CODE) && hasHashColumn && hasHashIndex) {
+    resolveMigration(STAFF_ACCESS_CODE);
+    applied.add(STAFF_ACCESS_CODE);
+  }
+  if (applied.has(ACCESS_CODE_ONLY_EMPLOYEES) && (!emailIsNullable || !passwordIsNullable)) {
+    throw new Error("The access-code-only employee migration is recorded as applied, but User.email/passwordHash nullability does not match.");
+  }
+  if (!applied.has(ACCESS_CODE_ONLY_EMPLOYEES) && emailIsNullable && passwordIsNullable) {
+    resolveMigration(ACCESS_CODE_ONLY_EMPLOYEES);
+    applied.add(ACCESS_CODE_ONLY_EMPLOYEES);
+  }
+  if (applied.has(ENCRYPTED_STAFF_ACCESS_CODES) && !hasEncryptedColumn) {
+    throw new Error("The encrypted staff access-code migration is recorded as applied, but its column is missing.");
+  }
+  if (!applied.has(ENCRYPTED_STAFF_ACCESS_CODES) && hasEncryptedColumn) {
+    resolveMigration(ENCRYPTED_STAFF_ACCESS_CODES);
+    applied.add(ENCRYPTED_STAFF_ACCESS_CODES);
+  }
+}
+
 async function main() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL is required to deploy database migrations.");
@@ -163,7 +205,7 @@ async function main() {
   const applied = await getAppliedMigrations(tables);
 
   if (existingCoreTables.length > 0 && existingCoreTables.length !== coreTables.length) {
-    throw new Error("The database has a partial MyPOS core schema; refusing to mark its baseline as applied.");
+    throw new Error("The database has a partial VidyPOS core schema; refusing to mark its baseline as applied.");
   }
 
   if (existingCoreTables.length === coreTables.length && !applied.has(BASELINE)) {
@@ -186,6 +228,7 @@ async function main() {
   await reconcileImportedSupportSchema(tables, currentApplied);
   await reconcileImportedTaxSchema(tables, currentApplied);
   await reconcileProductNameMigration(tables);
+  await reconcileStaffAccessCodeSchema(tables, currentApplied);
   await reconcileStoreEmailActivation(tables, currentApplied);
   deployMigrations();
 }

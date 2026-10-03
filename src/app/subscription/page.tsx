@@ -18,6 +18,7 @@ export const dynamic = "force-dynamic";
 
 export default async function SubscriptionPage() {
   const session = await requireSession("/subscription");
+  if (session.user.isEmployee || session.user.role === "SUPER_ADMIN") redirect("/forbidden");
   if (!session.user.storeId) redirect("/forbidden");
   const subscription = await prisma.storeSubscription.findFirst({ where: { storeId: session.user.storeId }, orderBy: { createdAt: "desc" }, include: { store: { select: { phone: true } } } });
   const pricing = await getPlatformPlanPricing();
@@ -37,7 +38,7 @@ export default async function SubscriptionPage() {
   const daysLeft = Math.max(0, Math.ceil((accessEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
   const expiryBarClass = expired ? "bg-red-500" : daysLeft <= 7 ? "bg-amber-500" : "bg-brand-500";
 
-  return <SessionProvider user={session.user}><AppShell><div className="space-y-6"><PageHeader title="Subscription" description="Manage your MyPOS portal access and monthly plan." />
+  return <SessionProvider user={session.user}><AppShell restricted={expired}><div className="space-y-6"><PageHeader title="Subscription" description="Manage your VidyPOS portal access and monthly plan." />
     <div className="grid gap-4 lg:grid-cols-3">
       <Card className="lg:col-span-2"><CardHeader><CardTitle className="flex items-center gap-2"><CreditCard className="size-5 text-brand-600" />Current plan</CardTitle></CardHeader><CardContent>
         {subscription && plan ? <><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-2xl font-semibold text-fg">{plan.name}</p><p className="mt-1 text-sm text-fg-muted">{plan.description}</p><p className="mt-3 text-lg font-medium text-fg">{livePrice}</p></div><Badge variant={status === "ACTIVE" || status === "TRIALING" ? "success" : "danger"}>{status === "TRIALING" ? "Free trial" : status.replace("_", " ")}</Badge></div><div className="mt-6 space-y-3">

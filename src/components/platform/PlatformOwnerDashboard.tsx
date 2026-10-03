@@ -5,6 +5,11 @@ import { RenewSubscriptionButton } from "@/components/platform/RenewSubscription
 import { PlatformPlanManager } from "@/components/platform/PlatformPlanManager";
 import type { PlatformOverview } from "@/lib/services/platform.service";
 
+const formatGhs = (amount: number) => new Intl.NumberFormat("en-GH", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+}).format(amount);
+
 export function PlatformOwnerDashboard({ overview }: { overview: PlatformOverview }) {
   const statusTone: Record<string, string> = {
     TRIALING: "bg-amber-500/15 text-amber-700",
@@ -66,7 +71,7 @@ export function PlatformOwnerDashboard({ overview }: { overview: PlatformOvervie
             <span className="text-xs font-semibold uppercase tracking-wide text-fg-muted">Monthly recurring revenue</span>
             <CreditCard className="size-4 text-brand-600" />
           </div>
-          <div className="text-3xl font-semibold text-fg">GHS {overview.metrics.monthlyRecurringRevenue}</div>
+          <div className="text-3xl font-semibold text-fg">GHS {formatGhs(overview.metrics.monthlyRecurringRevenue)}</div>
           <div className="text-xs text-fg-muted">subscription recurring</div>
         </div>
 
@@ -104,7 +109,7 @@ export function PlatformOwnerDashboard({ overview }: { overview: PlatformOvervie
             <span className="text-xs font-semibold uppercase tracking-wide text-fg-muted">Total sales processed</span>
             <BarChart3 className="size-4 text-brand-600" />
           </div>
-          <div className="text-3xl font-semibold text-fg">GHS {overview.metrics.totalSalesProcessed}</div>
+          <div className="text-3xl font-semibold text-fg">GHS {formatGhs(overview.metrics.totalSalesProcessed)}</div>
           <div className="text-xs text-fg-muted">gross sales</div>
         </div>
 
@@ -113,7 +118,7 @@ export function PlatformOwnerDashboard({ overview }: { overview: PlatformOvervie
             <span className="text-xs font-semibold uppercase tracking-wide text-fg-muted">Payment revenue</span>
             <Receipt className="size-4 text-cyan-600" />
           </div>
-          <div className="text-3xl font-semibold text-fg">GHS {overview.metrics.paymentRevenue}</div>
+          <div className="text-3xl font-semibold text-fg">GHS {formatGhs(overview.metrics.paymentRevenue)}</div>
           <div className="text-xs text-fg-muted">gateway payments</div>
         </div>
 
@@ -122,7 +127,7 @@ export function PlatformOwnerDashboard({ overview }: { overview: PlatformOvervie
             <span className="text-xs font-semibold uppercase tracking-wide text-fg-muted">Subscription revenue</span>
             <Repeat className="size-4 text-emerald-600" />
           </div>
-          <div className="text-3xl font-semibold text-fg">GHS {overview.metrics.subscriptionRevenue}</div>
+          <div className="text-3xl font-semibold text-fg">GHS {formatGhs(overview.metrics.subscriptionRevenue)}</div>
           <div className="text-xs text-fg-muted">business subscriptions</div>
         </div>
       </section>

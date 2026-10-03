@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/db/prisma";
 import { getPlanLabel, getPlanLimits, normalizePlanKey } from "@/lib/config/plan-features";
+import { getPlanFeatureStatus } from "@/lib/config/platform-features";
 import type { SubscriptionPlan } from "@/lib/config/subscription-plans";
 
 const ACCESSIBLE_STATUSES = new Set(["TRIALING", "ACTIVE"]);
@@ -64,7 +65,7 @@ export async function getSubscriptionStatus(
   };
 }
 
-export type PlanFeatureKey = "customers" | "suppliers" | "returns" | "scannerOnPos" | "scannerOutsidePos";
+export type PlanFeatureKey = "customers" | "suppliers" | "returns" | "scannerOnPos" | "scannerOutsidePos" | "offlinePos";
 
 export interface StorePlanInfo {
   plan: SubscriptionPlan;
@@ -99,7 +100,10 @@ export async function requirePlanFeature(
   feature: PlanFeatureKey,
 ): Promise<{ allowed: true; planLabel: string } | { allowed: false; planLabel: string; message: string }> {
   const info = await getStorePlan(storeId);
-  if (info.limits[feature]) return { allowed: true, planLabel: info.planLabel };
+  const allowed = feature === "offlinePos"
+    ? getPlanFeatureStatus(info.plan, feature)
+    : info.limits[feature];
+  if (allowed) return { allowed: true, planLabel: info.planLabel };
   const featureName =
     feature === "customers"
       ? "the customers page"
@@ -109,7 +113,9 @@ export async function requirePlanFeature(
           ? "the returns page"
           : feature === "scannerOnPos"
             ? "camera and barcode scanning on the sales page"
-            : "camera and barcode scanning outside the sales page";
+            : feature === "scannerOutsidePos"
+              ? "camera and barcode scanning outside the sales page"
+              : "Offline POS";
   return {
     allowed: false,
     planLabel: info.planLabel,

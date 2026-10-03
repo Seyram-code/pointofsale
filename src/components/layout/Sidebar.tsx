@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Store, X } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { visibleSections } from "@/lib/config/navigation";
@@ -11,12 +11,19 @@ import { publicEnv } from "@/lib/config/env";
 export interface SidebarProps {
   mobileOpen: boolean;
   onCloseMobile: () => void;
+  restricted?: boolean;
 }
 
-export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
+export function Sidebar({ mobileOpen, onCloseMobile, restricted = false }: SidebarProps) {
   const user = useCurrentUser();
   const pathname = usePathname();
-  const sections = visibleSections(user.permissions, user.role);
+  const router = useRouter();
+  const sections = visibleSections(user.permissions, user.role, user.isEmployee)
+    .map((section) => ({
+      ...section,
+      items: restricted ? section.items.filter((item) => ["/subscription", "/support"].includes(item.href)) : section.items,
+    }))
+    .filter((section) => section.items.length > 0);
 
   const content = (
     <>
@@ -51,7 +58,14 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
                   <li key={item.href}>
                     <Link
                       href={item.href}
+                      prefetch={user.role === "SUPER_ADMIN"}
                       onClick={onCloseMobile}
+                      onMouseEnter={() => {
+                        if (user.role === "SUPER_ADMIN") router.prefetch(item.href);
+                      }}
+                      onFocus={() => {
+                        if (user.role === "SUPER_ADMIN") router.prefetch(item.href);
+                      }}
                       aria-current={active ? "page" : undefined}
                       className={cn(
                         "flex h-11 items-center justify-start gap-3 rounded-lg px-3 text-sm font-medium transition-colors lg:justify-center lg:group-hover:justify-start",

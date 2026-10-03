@@ -57,7 +57,7 @@ export interface PlanLimits {
 export const PLAN_LIMITS: Record<PlanKey, PlanLimits> = {
   TRIAL: {
     label: "Trial",
-    description: "Try every MyPOS feature free for 14 days.",
+    description: "Try every VidyPOS feature free for 14 days.",
     monthlyPrice: null,
     features: [
       "14-day full-feature trial",

@@ -22,7 +22,7 @@ export const SUBSCRIPTION_PLANS: Record<
     name: "Trial",
     monthlyPrice: null,
     price: "Free for 14 days",
-    description: "Try every MyPOS feature free for 14 days.",
+    description: "Try every VidyPOS feature free for 14 days.",
     maxStaff: PLAN_LIMITS.TRIAL.maxStaff,
     features: [...PLAN_LIMITS.TRIAL.features],
   },

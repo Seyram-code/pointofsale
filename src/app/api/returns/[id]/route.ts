@@ -11,14 +11,14 @@ import { returnActionSchema } from "@/lib/validations/return.schema";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await authorize(PERMISSIONS.RETURNS_CREATE);
+    const session = await authorize(PERMISSIONS.RETURNS_CREATE, { planFeature: "returns" });
     const storeId = session.user.storeId;
     if (!storeId) throw ApiError.badRequest("Your account is not linked to a store");
     const { id } = await params;
     const { action } = returnActionSchema.parse(await request.json());
 
     if (action === "APPROVE" || action === "REJECT") {
-      await authorize(PERMISSIONS.RETURNS_APPROVE);
+      await authorize(PERMISSIONS.RETURNS_APPROVE, { planFeature: "returns" });
       const updated = await prisma.saleReturn.updateMany({
         where: { id, storeId, status: "PENDING" },
         data: action === "APPROVE" ? { status: "APPROVED", approvedById: session.user.id, approvedAt: new Date() } : { status: "REJECTED", approvedById: session.user.id, approvedAt: new Date() },

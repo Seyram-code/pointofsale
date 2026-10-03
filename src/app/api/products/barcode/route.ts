@@ -7,7 +7,7 @@ import { barcodeLookupSchema } from "@/lib/validations/sale.schema";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await authorize(PERMISSIONS.PRODUCTS_POS_LOOKUP);
+    const session = await authorize(PERMISSIONS.PRODUCTS_POS_LOOKUP, { planFeature: "scannerOnPos" });
     if (!session.user.storeId) throw ApiError.badRequest("Your account is not linked to a store");
 
     const { code } = barcodeLookupSchema.parse({ code: request.nextUrl.searchParams.get("code") ?? "" });

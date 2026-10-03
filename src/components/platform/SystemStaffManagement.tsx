@@ -14,7 +14,7 @@ import { useToast } from "@/components/ui/Toast";
 type SystemStaff = {
   id: string;
   fullName: string;
-  email: string;
+  email: string | null;
   staffCode: string;
   status: string;
   lastLoginAt: string | Date | null;
@@ -125,7 +125,7 @@ export function SystemStaffManagement({ initialStaff = [] }: { initialStaff?: Sy
           <CardContent>
             <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
               <Input label="Full name" name="fullName" required placeholder="e.g. Ama Mensah" />
-              <Input label="Email" name="email" type="email" required placeholder="ama@mypos.com" />
+              <Input label="Email" name="email" type="email" required placeholder="ama@vidypos.com" />
               <Input label="Password" name="password" type="password" required minLength={6} hint="Use upper, lower, number and symbol characters" />
               <div className="flex items-end text-sm text-fg-muted">This account receives platform-level access only.</div>
               {error && <p role="alert" className="sm:col-span-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-danger dark:bg-red-950/40">{error}</p>}

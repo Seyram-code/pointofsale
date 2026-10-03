@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// MyPOS — Supermarket Point of Sale (Ghana)
+// VidyPOS — Point of Sale for Ghanaian retailers
 // MySQL + Prisma schema
 // Money is stored as Decimal(12,2) in Ghana Cedi (GHS).
 // Quantities are Decimal(12,3) to support weighed goods (kg).
@@ -278,9 +278,11 @@ model User {
   storeId             String?
   staffCode           String     // used for quick till login within a store
   fullName            String
-  email               String     @unique
+  email               String?    @unique
   phone               String?
-  passwordHash        String
+  passwordHash        String?
+  staffAccessCodeHash String?    @unique
+  staffAccessCodeEncrypted String?
   pinHash             String? // 4-6 digit till PIN
   role                UserRole   @default(CASHIER)
   status              UserStatus @default(ACTIVE)

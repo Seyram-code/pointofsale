@@ -10,6 +10,7 @@ import { CameraBarcodeScanner } from "@/components/pos/CameraBarcodeScanner";
 import { api } from "@/lib/api/client";
 import { useToast } from "@/components/ui/Toast";
 import { DEFAULT_TAX_RATE } from "@/lib/config/constants";
+import { useCurrentUser } from "@/components/providers/SessionProvider";
 
 export function ProductForm({ mode = "retail" }: { mode?: "retail" | "restaurant" }) {
   const isRestaurant = mode === "restaurant";
@@ -20,6 +21,7 @@ export function ProductForm({ mode = "retail" }: { mode?: "retail" | "restaurant
   const [cameraScannerOpen, setCameraScannerOpen] = useState(false);
   const [taxRate, setTaxRate] = useState(DEFAULT_TAX_RATE);
   const toast = useToast();
+  const scannerEnabled = useCurrentUser().scannerOutsidePos;
   const preTaxPrice = Number(sellingPrice) || 0;
   const taxAmount = Math.round(preTaxPrice * taxRate * 100) / 100;
   const finalPrice = Math.round((preTaxPrice + taxAmount) * 100) / 100;
@@ -70,7 +72,7 @@ export function ProductForm({ mode = "retail" }: { mode?: "retail" | "restaurant
               placeholder="Optional barcode"
               value={barcode}
               onChange={(event) => setBarcode(event.target.value)}
-              rightSlot={
+              rightSlot={scannerEnabled ? (
                 <button
                   type="button"
                   onClick={() => setCameraScannerOpen(true)}
@@ -79,7 +81,7 @@ export function ProductForm({ mode = "retail" }: { mode?: "retail" | "restaurant
                 >
                   <Camera className="size-4" />
                 </button>
-              }
+              ) : undefined}
             />
             <Input label={isRestaurant ? "Ingredient cost (GHS)" : "Cost price (GHS)"} name="costPrice" type="number" min="0" step="0.01" required placeholder="0.00" />
             <Input
@@ -110,14 +112,14 @@ export function ProductForm({ mode = "retail" }: { mode?: "retail" | "restaurant
         </div>
       </form>
 
-      <CameraBarcodeScanner
+      {scannerEnabled && <CameraBarcodeScanner
         open={cameraScannerOpen}
         onClose={() => setCameraScannerOpen(false)}
         onDetected={(code) => {
           setBarcode(code);
           setCameraScannerOpen(false);
         }}
-      />
+      />}
     </>
   );
 }

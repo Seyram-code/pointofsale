@@ -1,7 +1,7 @@
 {
-  "name": "MyPOS Supermarket",
-  "short_name": "MyPOS",
-  "description": "Point of sale and retail management for supermarkets in Ghana.",
+  "name": "VidyPOS",
+  "short_name": "VidyPOS",
+  "description": "Point of sale and retail management for Ghanaian shops and pharmacies.",
   "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",
@@ -11,10 +11,10 @@
   "lang": "en-GH",
   "icons": [
     {
-      "src": "/icons/mypos.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "src": "/icons/vidypos-cart.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }

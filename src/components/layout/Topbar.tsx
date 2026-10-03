@@ -19,7 +19,7 @@ interface AppNotification {
   createdAt: string;
 }
 
-export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
+export function Topbar({ onOpenMenu, restricted = false }: { onOpenMenu: () => void; restricted?: boolean }) {
   const user = useCurrentUser();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
@@ -29,6 +29,7 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
   const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
+    if (restricted) return;
     let cancelled = false;
     async function loadNotifications() {
       try {
@@ -42,7 +43,7 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [restricted]);
 
   async function markNotificationRead(notification: AppNotification) {
     if (notification.readAt) return;
@@ -85,7 +86,7 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
         {theme === "dark" ? <Sun className="size-5" /> : <Moon className="size-5" />}
       </button>
 
-      <div className="relative">
+      {!restricted && <div className="relative">
         <button
           type="button"
           onClick={() => setNotificationsOpen((open) => !open)}
@@ -129,7 +130,7 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
             </div>
           </>
         )}
-      </div>
+      </div>}
 
       <div className="relative">
         <button
@@ -155,12 +156,12 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
             >
               <div className="border-b border-line p-3">
                 <p className="truncate text-sm font-medium text-fg">{user.fullName}</p>
-                <p className="truncate text-xs text-fg-muted">{user.email}</p>
+                <p className="truncate text-xs text-fg-muted">{user.email ?? "Staff access code sign-in"}</p>
                 <Badge variant="brand" size="sm" className="mt-2">
                   {ROLE_LABELS[user.role]}
                 </Badge>
               </div>
-              <button
+              {!restricted && <button
                 type="button"
                 role="menuitem"
                 onClick={() => {
@@ -170,8 +171,8 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
                 className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-fg-secondary hover:bg-muted"
               >
                 <UserCog className="size-4" /> My profile
-              </button>
-              {user.role !== "SUPER_ADMIN" && user.storeId && (
+              </button>}
+              {user.role !== "SUPER_ADMIN" && user.storeId && !user.isEmployee && (
                 <button
                   type="button"
                   role="menuitem"

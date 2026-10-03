@@ -43,7 +43,7 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
           <div className="aspect-[4/3] overflow-hidden rounded-2xl bg-brand-950">
             <Image
               src="/images/pharmacy.jpeg"
-              alt="Bright supermarket aisle with fresh products"
+              alt="VidyPOS retail checkout and inventory workspace"
               className="size-full object-cover"
               width={480}
               height={640}
@@ -58,7 +58,7 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
 
         <div className="relative z-10 mt-10 max-w-md">
           <h2 className="text-3xl font-semibold leading-tight xl:text-4xl">
-            Everything your supermarket needs, in one till.
+            Everything your shop needs, in one till.
           </h2>
           <ul className="mt-8 space-y-5">
             {HIGHLIGHTS.map((item) => (

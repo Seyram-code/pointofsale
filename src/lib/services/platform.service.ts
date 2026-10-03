@@ -236,21 +236,20 @@ export async function getPlatformOverview(): Promise<PlatformOverview> {
   };
 
   const thirtyDaysAgo = new Date(Date.now() - 1000 * 60 * 60 * 24 * 30);
-  const [salesTotal, paymentRevenue, activeUsers, totalTransactions, newRegistrations, activeBusinesses] = await Promise.all([
+  const [salesTotal, activeUsers, totalTransactions, newRegistrations] = await Promise.all([
     prisma.sale.aggregate({ _sum: { total: true } }),
-    prisma.payment.aggregate({ where: { status: "SUCCESSFUL" }, _sum: { amount: true } }),
     prisma.user.count({ where: { status: "ACTIVE", deletedAt: null } }),
     prisma.sale.count(),
     prisma.store.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
-    prisma.store.count({ where: { isActive: true } }),
   ]);
 
   const subscriptionRevenue = storeMetrics.reduce((sum, store) => sum + store.monthlyPrice, 0);
   const monthlyRecurringRevenue = subscriptionRevenue;
+  const paymentRevenue = storeMetrics.reduce((sum, store) => sum + store.paymentRevenue, 0);
 
   const metrics: PlatformMetrics = {
     totalRegisteredBusinesses: totals.stores,
-    activeBusinesses,
+    activeBusinesses: totals.activeStores,
     trialBusinesses: totals.trialingStores,
     expiredSubscriptions: totals.pastDueStores,
     monthlyRecurringRevenue,
@@ -258,7 +257,7 @@ export async function getPlatformOverview(): Promise<PlatformOverview> {
     activeUsers,
     totalTransactions,
     totalSalesProcessed: Number(salesTotal._sum.total ?? 0),
-    paymentRevenue: Number(paymentRevenue._sum.amount ?? 0),
+    paymentRevenue,
     subscriptionRevenue,
   };
 

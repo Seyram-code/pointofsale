@@ -6,10 +6,11 @@ import { cn } from "@/lib/utils/cn";
 import { mobileNavItems } from "@/lib/config/navigation";
 import { useCurrentUser } from "@/components/providers/SessionProvider";
 
-export function MobileNav() {
+export function MobileNav({ restricted = false }: { restricted?: boolean }) {
   const user = useCurrentUser();
   const pathname = usePathname();
-  const items = mobileNavItems(user.permissions, user.role);
+  const items = mobileNavItems(user.permissions, user.role, user.isEmployee)
+    .filter((item) => !restricted || ["/subscription", "/support"].includes(item.href));
 
   if (user.role === "SUPER_ADMIN" || items.length === 0) return null;
 

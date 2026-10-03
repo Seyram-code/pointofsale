@@ -10,7 +10,7 @@ import { DECIMAL_MONEY, DECIMAL_QTY } from "@/lib/services/cart.service";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await authorize(PERMISSIONS.RETURNS_CREATE);
+    const session = await authorize(PERMISSIONS.RETURNS_CREATE, { planFeature: "returns" });
     if (!session.user.storeId) throw ApiError.badRequest("Your account is not linked to a store");
     const receiptNumber = request.nextUrl.searchParams.get("receiptNumber")?.trim();
     if (!receiptNumber) throw ApiError.badRequest("A receipt number is required");
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await authorize(PERMISSIONS.RETURNS_CREATE);
+    const session = await authorize(PERMISSIONS.RETURNS_CREATE, { planFeature: "returns" });
     const storeId = session.user.storeId;
     if (!storeId) throw ApiError.badRequest("Your account is not linked to a store");
     const input = createReturnSchema.parse(await request.json());

@@ -16,5 +16,5 @@ export default async function ProductsPage() {
       ])
     : [[], []];
 
-  return <ProductCatalogue initialProducts={products} categories={categories} canEdit={user.permissions.includes(PERMISSIONS.PRODUCTS_UPDATE)} canDelete={user.permissions.includes(PERMISSIONS.PRODUCTS_DELETE)} />;
+  return <ProductCatalogue initialProducts={products} categories={categories} canEdit={user.permissions.includes(PERMISSIONS.PRODUCTS_UPDATE)} canDelete={user.permissions.includes(PERMISSIONS.PRODUCTS_DELETE)} canImport={user.permissions.includes(PERMISSIONS.PRODUCTS_CREATE)} />;
 }

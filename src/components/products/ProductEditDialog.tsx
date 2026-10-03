@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { CameraBarcodeScanner } from "@/components/pos/CameraBarcodeScanner";
 import { api } from "@/lib/api/client";
 import type { PosProduct } from "@/lib/services/product.service";
+import { useCurrentUser } from "@/components/providers/SessionProvider";
 
 interface ProductEditDialogProps {
   product: PosProduct | null;
@@ -17,6 +18,7 @@ interface ProductEditDialogProps {
 }
 
 export function ProductEditDialog({ product, open, onClose, onSaved }: ProductEditDialogProps) {
+  const scannerEnabled = useCurrentUser().scannerOutsidePos;
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [cameraScannerOpen, setCameraScannerOpen] = useState(false);
@@ -53,7 +55,7 @@ export function ProductEditDialog({ product, open, onClose, onSaved }: ProductEd
             label="Barcode"
             value={values.barcode}
             onChange={(event) => setValues({ ...values, barcode: event.target.value })}
-            rightSlot={
+            rightSlot={scannerEnabled ? (
               <button
                 type="button"
                 onClick={() => setCameraScannerOpen(true)}
@@ -62,7 +64,7 @@ export function ProductEditDialog({ product, open, onClose, onSaved }: ProductEd
               >
                 <Camera className="size-4" />
               </button>
-            }
+            ) : undefined}
           />
           <div className="grid grid-cols-2 gap-3">
             <Input label="Cost price" type="number" min="0" step="0.01" value={values.costPrice} required onChange={(event) => setValues({ ...values, costPrice: event.target.value })} />
@@ -76,14 +78,14 @@ export function ProductEditDialog({ product, open, onClose, onSaved }: ProductEd
         </form>
       </Modal>
 
-      <CameraBarcodeScanner
+      {scannerEnabled && <CameraBarcodeScanner
         open={cameraScannerOpen}
         onClose={() => setCameraScannerOpen(false)}
         onDetected={(code) => {
           setValues((current) => ({ ...current, barcode: code }));
           setCameraScannerOpen(false);
         }}
-      />
+      />}
     </>
   );
 }

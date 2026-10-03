@@ -19,7 +19,7 @@ const updateSchema = z.object({
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await authorize(PERMISSIONS.CUSTOMERS_MANAGE);
+    const session = await authorize(PERMISSIONS.CUSTOMERS_MANAGE, { planFeature: "customers" });
     if (!session.user.storeId) throw ApiError.badRequest("Your account is not linked to a store");
     const { id } = await params;
     const input = updateSchema.parse(await request.json());
@@ -34,7 +34,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await authorize(PERMISSIONS.CUSTOMERS_MANAGE);
+    const session = await authorize(PERMISSIONS.CUSTOMERS_MANAGE, { planFeature: "customers" });
     if (!session.user.storeId) throw ApiError.badRequest("Your account is not linked to a store");
     const { id } = await params;
     const existing = await prisma.customer.findFirst({ where: { id, storeId: session.user.storeId, deletedAt: null }, select: { id: true } });

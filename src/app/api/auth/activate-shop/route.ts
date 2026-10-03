@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
+import { createSession } from "@/lib/auth/session";
 import { ApiError, handleApiError, ok } from "@/lib/api/response";
 
 const activationSchema = z.object({
@@ -13,7 +14,7 @@ export async function POST(request: Request) {
     const { email, code } = activationSchema.parse(await request.json());
     const owner = await prisma.user.findFirst({
       where: { email, role: "ADMIN", deletedAt: null, storeId: { not: null } },
-      select: { storeId: true },
+      select: { id: true, storeId: true },
     });
     if (!owner?.storeId) throw ApiError.badRequest("The activation code is invalid or expired");
 
@@ -48,6 +49,10 @@ export async function POST(request: Request) {
       });
       throw ApiError.badRequest("The activation code is invalid, expired, or has too many attempts");
     }
+    await createSession(owner.id, {
+      userAgent: request.headers.get("user-agent"),
+      ipAddress: request.headers.get("x-forwarded-for"),
+    });
     return ok({ activated: true });
   } catch (error) {
     return handleApiError(error);

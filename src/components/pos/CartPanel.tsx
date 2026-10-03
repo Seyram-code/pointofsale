@@ -19,6 +19,7 @@ export interface CartPanelProps {
   onClear: () => void;
   onCheckout: () => void;
   onCloseMobile?: () => void;
+  canSelectCustomer: boolean;
   canDiscount: boolean;
   canHold: boolean;
   busy?: boolean;
@@ -34,6 +35,7 @@ export function CartPanel({
   onClear,
   onCheckout,
   onCloseMobile,
+  canSelectCustomer,
   canDiscount,
   canHold,
   busy,
@@ -62,18 +64,14 @@ export function CartPanel({
         )}
       </div>
 
-      <button
-        type="button"
-        onClick={onOpenCustomer}
-        className="flex items-center gap-2.5 border-b border-line px-3 py-2.5 text-left hover:bg-muted"
-      >
+      <div className="flex items-center gap-2.5 border-b border-line px-3 py-2.5">
         <UserRound className="size-4 shrink-0 text-fg-muted" />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm text-fg">{customer?.fullName ?? "Walk-in customer"}</span>
           {customer?.phone && <span className="block truncate text-xs text-fg-muted">{customer.phone}</span>}
         </span>
-        <span className="shrink-0 text-xs text-brand-600 dark:text-brand-400">{customer ? "Change" : "Add"}</span>
-      </button>
+        {canSelectCustomer && <button type="button" onClick={onOpenCustomer} className="shrink-0 text-xs text-brand-600 dark:text-brand-400">{customer ? "Change" : "Add"}</button>}
+      </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {empty ? (

@@ -3,9 +3,10 @@ import type { UserRole } from "@prisma/client";
 export interface SessionUser {
   id: string;
   fullName: string;
-  email: string;
+  email: string | null;
   staffCode: string;
   role: UserRole;
+  isEmployee: boolean;
   storeId: string | null;
   businessId: string | null;
   storeName: string | null;
@@ -15,6 +16,8 @@ export interface SessionUser {
   permissions: string[];
   /** Effective subscription package key, e.g. "STARTER". Drives plan gating in the UI. */
   plan: string;
+  /** Whether the active store plan is currently valid and the shop can access protected areas. */
+  subscriptionActive: boolean;
   /** Whether camera/hardware scanning may be used on the sales (POS) page. */
   scannerOnPos: boolean;
   /** Whether camera scanning may be used outside the sales page (product forms). */

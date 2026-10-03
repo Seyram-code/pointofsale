@@ -21,7 +21,7 @@ type Ticket = {
   createdAt: string;
   updatedAt: string;
   store: { id: string; name: string; branchCode: string };
-  createdBy: { id: string; fullName: string; email: string; role: string };
+  createdBy: { id: string; fullName: string; email: string | null; role: string };
   messages: { id: string; body: string; createdAt: string; readAt: string | null; author: { id: string; fullName: string; role: string } }[];
 };
 

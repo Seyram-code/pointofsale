@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { Prisma } from "@prisma/client";
 import { ForbiddenError, UnauthorizedError } from "@/lib/auth/guard";
+import { RequestTimeoutError } from "@/lib/api/request-timeout";
 
 export type ApiErrorCode =
   | "BAD_REQUEST"
@@ -84,7 +85,14 @@ export function handleApiError(error: unknown) {
     if (error.code === "P2025") return fail("NOT_FOUND", "Record not found", 404);
     if (error.code === "P2003") return fail("CONFLICT", "Related record constraint failed", 409);
   }
-  if (error instanceof Prisma.PrismaClientInitializationError) {
+  if (error instanceof RequestTimeoutError) {
+    return fail("INTERNAL_ERROR", "Database unavailable. Check that MySQL is running and configured correctly.", 503);
+  }
+  if (
+    error instanceof Prisma.PrismaClientInitializationError ||
+    (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P1001") ||
+    (error instanceof Error && /timeout|timed out|database.*unavailable|ECONNREFUSED|connection.*failed/i.test(error.message))
+  ) {
     return fail("INTERNAL_ERROR", "Database unavailable. Check that MySQL is running and configured correctly.", 503);
   }
 

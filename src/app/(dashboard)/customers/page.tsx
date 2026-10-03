@@ -6,6 +6,8 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { requirePermission } from "@/lib/auth/guard";
 import { PERMISSIONS } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/db/prisma";
+import { requirePlanFeature } from "@/lib/services/subscription.service";
+import { PlanUpgradeNotice } from "@/components/subscription/PlanUpgradeNotice";
 
 export const metadata: Metadata = { title: "Customers" };
 export const dynamic = "force-dynamic";
@@ -19,6 +21,10 @@ export default async function CustomersPage({ searchParams }: { searchParams?: P
   const q = parseQuery(params.q);
 
   const { user } = await requirePermission(PERMISSIONS.CUSTOMERS_VIEW, "/customers");
+  const featureAccess = user.role === "SUPER_ADMIN" || !user.storeId
+    ? { allowed: true as const, planLabel: "Enterprise" }
+    : await requirePlanFeature(user.storeId, "customers");
+  if (!featureAccess.allowed) return <PlanUpgradeNotice message={featureAccess.message} />;
   const canManage = user.permissions.includes(PERMISSIONS.CUSTOMERS_MANAGE);
   const where = user.storeId
     ? {

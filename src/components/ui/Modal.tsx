@@ -63,7 +63,7 @@ export function Modal({
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
+        className="print-hide-backdrop absolute inset-0 bg-black/50 backdrop-blur-[2px]"
         onClick={closeOnBackdrop ? onClose : undefined}
         aria-hidden
       />
@@ -74,7 +74,7 @@ export function Modal({
         aria-label={title}
         tabIndex={-1}
         className={cn(
-          "relative flex max-h-[92vh] w-full flex-col overflow-hidden bg-card shadow-[var(--shadow-panel)]",
+          "print-panel relative flex max-h-[92vh] w-full flex-col overflow-hidden bg-card shadow-[var(--shadow-panel)]",
           "rounded-t-2xl sm:rounded-2xl",
           SIZES[size],
         )}
@@ -96,9 +96,9 @@ export function Modal({
             </button>
           </div>
         )}
-        <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">{children}</div>
+        <div className="print-panel-body flex-1 overflow-y-auto px-4 py-4 sm:px-5">{children}</div>
         {footer && (
-          <div className="safe-bottom flex flex-col-reverse gap-3 border-t border-line px-5 py-5 pb-6 sm:flex-row sm:justify-end sm:gap-6 sm:px-8 sm:py-5 sm:pb-6">
+          <div className="no-print safe-bottom flex flex-col-reverse gap-3 border-t border-line px-5 py-5 pb-6 sm:flex-row sm:justify-end sm:gap-6 sm:px-8 sm:py-5 sm:pb-6">
             {footer}
           </div>
         )}
