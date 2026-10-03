@@ -72,6 +72,7 @@ export async function POST(request: NextRequest) {
     }
     const codePattern = new RegExp(`^${getStoreAccessCodePrefix(session.user.storeName ?? "Shop")}\\d{3}$`);
     if (!codePattern.test(requestedAccessCode)) throw ApiError.badRequest("Generate a valid staff access code for this store");
+    const requestedAccessCodeHash = hashStaffAccessCode(requestedAccessCode);
     let createdUser;
     let staffAccessCode = "";
     for (let attempt = 0; attempt < 20; attempt += 1) {
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest) {
           const staffCode = await nextShortNumber(tx, storeId, `STAFF_${role}`, STAFF_ROLE_PREFIXES[role]);
           const employeeNumber = await nextShortNumber(tx, storeId, "EMPLOYEE", "EMP");
           const generatedCode = attempt === 0
-            ? { accessCode: requestedAccessCode, hash: hashStaffAccessCode(requestedAccessCode) }
+            ? { accessCode: requestedAccessCode, hash: requestedAccessCodeHash }
             : createStaffAccessCode(session.user.storeName ?? "Shop");
           const user = await tx.user.create({
             data: {
@@ -107,6 +108,15 @@ export async function POST(request: NextRequest) {
         break;
       } catch (error) {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002" && attempt < 19) {
+          if (attempt === 0) {
+            const priorAccessCode = await prisma.user.findUnique({
+              where: { staffAccessCodeHash: requestedAccessCodeHash },
+              select: { id: true, storeId: true, employeeProfile: { select: { id: true } } },
+            });
+            if (priorAccessCode?.storeId === storeId && priorAccessCode.employeeProfile) {
+              throw ApiError.conflict("This employee account was already created. Refresh the employee list before trying again.");
+            }
+          }
           await nextShortNumber(prisma, storeId, `STAFF_${role}`, STAFF_ROLE_PREFIXES[role]);
           await nextShortNumber(prisma, storeId, "EMPLOYEE", "EMP");
           continue;

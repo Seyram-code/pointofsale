@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Store, X } from "lucide-react";
+import { Download, Store, X } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { visibleSections } from "@/lib/config/navigation";
 import { useCurrentUser } from "@/components/providers/SessionProvider";
@@ -83,6 +83,18 @@ export function Sidebar({ mobileOpen, onCloseMobile, restricted = false }: Sideb
           </div>
         ))}
       </nav>
+      <div className="shrink-0 border-t border-line p-3 lg:px-2 lg:group-hover:px-3">
+        <a
+          href="/downloads/VidyPOS-User-Manual.pdf"
+          download="VidyPOS-User-Manual.pdf"
+          onClick={onCloseMobile}
+          className="flex h-11 items-center gap-3 rounded-lg border border-line bg-white px-3 text-sm font-semibold text-slate-900 shadow-sm transition-colors hover:bg-slate-50 lg:justify-center lg:group-hover:justify-start"
+          title="Download manual"
+        >
+          <Download className="size-[18px] shrink-0" />
+          <span className="truncate lg:hidden lg:group-hover:block">Download manual</span>
+        </a>
+      </div>
     </>
   );
 

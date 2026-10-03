@@ -7,6 +7,7 @@ import {
   Check,
   ChevronRight,
   CreditCard,
+  Download,
   Menu,
   ReceiptText,
   ScanBarcode,
@@ -89,6 +90,14 @@ export default async function HomePage() {
             >
               All plans
             </Link>
+            <a
+              href="/downloads/VidyPOS-User-Manual.pdf"
+              download="VidyPOS-User-Manual.pdf"
+              className="inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-lg border border-white/80 bg-white px-3 text-sm font-semibold text-slate-950 shadow-sm transition-colors hover:bg-brand-50"
+            >
+              <Download className="size-4" />
+              Download manual
+            </a>
           </nav>
 
           <div className="flex items-center gap-2">
@@ -125,6 +134,10 @@ export default async function HomePage() {
                 <Link href="/plans" className="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-200 transition-colors hover:bg-white/5">
                   All plans
                 </Link>
+                <a href="/downloads/VidyPOS-User-Manual.pdf" download="VidyPOS-User-Manual.pdf" className="mt-2 flex items-center justify-center gap-2 rounded-lg border border-white/80 bg-white px-3 py-2.5 text-sm font-semibold text-slate-950 shadow-sm transition-colors hover:bg-brand-50">
+                  <Download className="size-4" />
+                  <span>Download manual</span>
+                </a>
                 <div className="my-2 border-t border-white/10" />
                 <Link href="/login" className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/5">
                   Sign in

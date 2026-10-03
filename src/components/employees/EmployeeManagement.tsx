@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Clipboard, KeyRound, Power, Save, UserPlus, X } from "lucide-react";
 import { api, ApiClientError } from "@/lib/api/client";
 import { useRouter } from "next/navigation";
@@ -45,6 +45,7 @@ export function EmployeeManagement({ initialEmployees, canManageAdmins }: { init
   const [staffAccessCode, setStaffAccessCode] = useState("");
   const [codeLoading, setCodeLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const createInFlight = useRef(false);
   const [error, setError] = useState("");
   const [role, setRole] = useState<StaffRole>("CASHIER");
   const [preview, setPreview] = useState({ staffCode: "Generating...", employeeNumber: "Generating..." });
@@ -83,6 +84,8 @@ export function EmployeeManagement({ initialEmployees, canManageAdmins }: { init
 
   async function submitCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (createInFlight.current) return;
+    createInFlight.current = true;
     setBusy(true);
     setError("");
     const form = new FormData(event.currentTarget);
@@ -94,9 +97,18 @@ export function EmployeeManagement({ initialEmployees, canManageAdmins }: { init
       setStaffAccessCode("");
       toast.success("Employee added", "The employee account was created successfully.");
       router.refresh();
+      createInFlight.current = false;
     } catch (submissionError) {
-      setError(submissionError instanceof ApiClientError ? submissionError.message : "Unable to create employee.");
+      const message = submissionError instanceof ApiClientError ? submissionError.message : "Unable to create employee.";
+      setError(message);
+      if (submissionError instanceof ApiClientError && submissionError.code === "CONFLICT" && message.includes("already created")) {
+        setShowForm(false);
+        setFullName("");
+        setStaffAccessCode("");
+        router.refresh();
+      }
       setBusy(false);
+      createInFlight.current = false;
     }
   }
 
