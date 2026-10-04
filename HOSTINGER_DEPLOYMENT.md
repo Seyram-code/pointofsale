@@ -12,7 +12,7 @@ In Hostinger's Node.js environment variables, configure the values from `.env.ex
 
 - `DATABASE_URL`: use the Hostinger database name, user, password, and `127.0.0.1:3306`.
 - `AUTH_SECRET`: generate a unique secret with `openssl rand -base64 48`.
-- `AUTH_SESSION_TTL_HOURS`: use `12` unless a different session lifetime is required.
+- `AUTH_SESSION_TTL_HOURS`: use `12` as the absolute maximum session lifetime. The dashboard separately logs out after five minutes of inactivity.
 - `AUTH_COOKIE_NAME`: use `mypos_session`.
 - `NODE_ENV`: set to `production`.
 - `NEXT_PUBLIC_APP_URL`: set to the deployed HTTPS domain.

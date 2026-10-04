@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Download, Store, X } from "lucide-react";
+import { Download, X } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { visibleSections } from "@/lib/config/navigation";
 import { useCurrentUser } from "@/components/providers/SessionProvider";
 import { publicEnv } from "@/lib/config/env";
+import { StoreLogo } from "@/components/brand/StoreLogo";
 
 export interface SidebarProps {
   mobileOpen: boolean;
@@ -28,9 +29,7 @@ export function Sidebar({ mobileOpen, onCloseMobile, restricted = false }: Sideb
   const content = (
     <>
       <div className="flex h-16 shrink-0 items-center gap-2.5 border-b border-line px-4 lg:px-2 lg:group-hover:px-4">
-        <span className="flex size-9 items-center justify-center rounded-xl bg-brand-600 text-white">
-          <Store className="size-5" />
-        </span>
+        <StoreLogo size="sm" />
         <div className="block min-w-0 flex-1 lg:hidden lg:group-hover:block">
           <p className="truncate text-sm font-semibold text-fg">{publicEnv.appName}</p>
           <p className="truncate text-xs text-fg-muted">{user.storeName ?? "No store assigned"}</p>

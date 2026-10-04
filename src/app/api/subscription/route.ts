@@ -35,13 +35,14 @@ export async function POST(request: Request) {
   try {
     const session = await authorize(undefined, { allowExpiredSubscription: true });
     if (!session.user.storeId) throw ApiError.badRequest("Your account is not linked to a store");
-    const { plan, paymentMethod, paymentPhone, paymentEmail, reference } = z.object({
+    const { plan, paymentMethod, paymentPhone, paymentEmail, reference, months } = z.object({
       // Trial is granted by the platform at sign-up, so it is never purchasable.
       plan: z.enum(["STARTER", "PREMIUM", "ENTERPRISE"]),
       paymentMethod: z.enum(["CARD", "MOMO"]).optional(),
       paymentPhone: z.string().trim().optional(),
       paymentEmail: z.string().trim().email().max(254).optional(),
       reference: z.string().trim().min(1).max(100).optional(),
+      months: z.coerce.number().int().min(1).max(12).default(1),
     }).parse(await request.json());
     const subscription = await prisma.storeSubscription.findFirst({ where: { storeId: session.user.storeId }, orderBy: { createdAt: "desc" } });
     if (!subscription) throw ApiError.notFound("Subscription");
@@ -50,13 +51,15 @@ export async function POST(request: Request) {
     const expired = subscription.status === "CANCELED" || !["TRIALING", "ACTIVE"].includes(subscription.status) || subscription.currentPeriodEnd < now;
     // Compare against the normalised key so legacy rows (e.g. GROWTH) are not re-charged.
     const currentPlan = normalizePlanKey(subscription.plan);
-    if (plan === currentPlan && !expired && !reference) return ok({ plan: subscription.plan, status: subscription.status, currentPeriodEnd: subscription.currentPeriodEnd });
-
     let providerId: string | undefined;
     let externalRef: string | null = null;
     const pricing = await getPlatformPlanPricing();
     const selectedPlan = pricing.find((option) => option.key === plan);
     if (!selectedPlan) throw ApiError.badRequest("This subscription plan is unavailable");
+    if (plan === currentPlan && !expired && !reference && selectedPlan.monthlyPrice === null) {
+      return ok({ plan: subscription.plan, status: subscription.status, currentPeriodEnd: subscription.currentPeriodEnd });
+    }
+    const totalPrice = selectedPlan.monthlyPrice === null ? null : selectedPlan.monthlyPrice * months;
     if (selectedPlan.monthlyPrice !== null) {
       if (!paymentMethod) throw ApiError.badRequest("Choose a payment method for this plan");
       if (!reference && paymentMethod === "MOMO" && !paymentPhone) throw ApiError.badRequest("A Mobile Money number is required");
@@ -69,7 +72,7 @@ export async function POST(request: Request) {
       if (reference) {
         if (!provider.getStatus) throw ApiError.badRequest("This provider cannot verify hosted checkout payments");
         const verified = await provider.getStatus(reference);
-        if (verified.state !== "SUCCESSFUL" || Math.abs(verified.amount - selectedPlan.monthlyPrice) >= 0.01) {
+        if (verified.state !== "SUCCESSFUL" || Math.abs(verified.amount - totalPrice!) >= 0.01) {
           throw ApiError.badRequest("Paystack has not confirmed the correct payment amount yet");
         }
         if (provider.id.startsWith("momo.paystack") || provider.id.startsWith("card.live")) {
@@ -86,7 +89,7 @@ export async function POST(request: Request) {
             metadata = metadataValue as Record<string, unknown>;
           }
           const expectedChannel = paymentMethod === "MOMO" ? "mobile_money" : "card";
-          const expectedReferencePrefix = `SUB${plan}-${session.user.storeId.slice(0, 8).toUpperCase()}-`;
+          const expectedReferencePrefix = `SUB${plan}M${months}-${session.user.storeId.slice(0, 8).toUpperCase()}-`;
           const metadataStore = metadata.subscription_store_id;
           const metadataPlan = metadata.subscription_plan;
           const isNewPlanScopedReference = reference.startsWith(expectedReferencePrefix);
@@ -96,6 +99,7 @@ export async function POST(request: Request) {
           const channel = String(data.channel ?? "").toLowerCase();
           const mismatches: string[] = [];
           if (String(data.currency ?? "").toUpperCase() !== "GHS") mismatches.push("currency");
+          if (Number(metadata.subscription_months ?? 1) !== months) mismatches.push("subscription length");
           if (!isNewPlanScopedReference && !isLegacyReference) mismatches.push("store/plan reference");
           if (isNewPlanScopedReference && channel !== expectedChannel) mismatches.push("payment method");
           if (!isNewPlanScopedReference && !channel) mismatches.push("payment channel");
@@ -115,18 +119,18 @@ export async function POST(request: Request) {
       if (paymentMethod === "MOMO" && (!normalizedPhone || !momoNetwork)) throw ApiError.badRequest("Enter a valid Ghanaian Mobile Money number");
 
       let paymentResult;
-      const transactionReference = generateStoreScopedReference(session.user.storeId, `SUB${plan}`, 12);
+      const transactionReference = generateStoreScopedReference(session.user.storeId, `SUB${plan}M${months}`, 12);
       try {
         paymentResult = await provider.initiate({
           method: paymentMethod,
-          amount: selectedPlan.monthlyPrice,
+          amount: totalPrice!,
           currency: "GHS",
           reference: transactionReference,
           description: `${selectedPlan.name} subscription`,
           storeId: session.user.storeId,
           cashierId: session.user.id,
-          callbackUrl: `${getAppUrl()}/subscription?reference=${encodeURIComponent(transactionReference)}&plan=${plan}&method=${paymentMethod}`,
-          metadata: { subscription_store_id: session.user.storeId, subscription_plan: plan, payment_method: paymentMethod },
+          callbackUrl: `${getAppUrl()}/subscription?reference=${encodeURIComponent(transactionReference)}&plan=${plan}&method=${paymentMethod}&months=${months}`,
+          metadata: { subscription_store_id: session.user.storeId, subscription_plan: plan, subscription_months: String(months), payment_method: paymentMethod },
           momo: paymentMethod === "MOMO" ? { network: momoNetwork as "MTN" | "VODAFONE" | "AIRTELTIGO", phone: normalizedPhone!, email: paymentEmail } : undefined,
           card: paymentMethod === "CARD" ? { email: paymentEmail } : undefined,
         });
@@ -148,13 +152,15 @@ export async function POST(request: Request) {
       data.provider = providerId;
       data.providerSubscriptionId = externalRef;
     }
-    if (expired) {
-      // Renewal: start a fresh monthly cycle from the later of now and the old period end.
-      const periodStart = subscription.currentPeriodEnd > now ? subscription.currentPeriodEnd : now;
+    if (providerId && selectedPlan.monthlyPrice !== null) {
+      // Add the purchased duration after the current period, or from now if it has ended.
+      const periodStart = subscription.status !== "TRIALING" && subscription.currentPeriodEnd > now
+        ? subscription.currentPeriodEnd
+        : now;
       const periodEnd = new Date(periodStart);
-      periodEnd.setMonth(periodEnd.getMonth() + 1);
+      periodEnd.setMonth(periodEnd.getMonth() + months);
       data.status = "ACTIVE";
-      data.currentPeriodStart = periodStart;
+      if (expired || subscription.status === "TRIALING") data.currentPeriodStart = now;
       data.currentPeriodEnd = periodEnd;
       data.canceledAt = null;
     }

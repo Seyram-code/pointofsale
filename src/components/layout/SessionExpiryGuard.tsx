@@ -11,6 +11,7 @@ export function SessionExpiryGuard() {
     let checking = false;
     let timeoutId: number | undefined;
     let loggingOut = false;
+    let lastActivityAt = Date.now();
 
     async function checkSession() {
       if (checking || document.visibilityState !== "visible") return;
@@ -34,31 +35,42 @@ export function SessionExpiryGuard() {
       if (loggingOut) return;
       loggingOut = true;
 
-      try {
-        await fetch("/api/auth/logout", {
+      void fetch("/api/auth/logout", {
           method: "POST",
           credentials: "same-origin",
           cache: "no-store",
-        });
-      } catch {
-      }
+          keepalive: true,
+        }).catch(() => undefined);
 
       const next = `${window.location.pathname}${window.location.search}`;
       window.location.replace(`/login?next=${encodeURIComponent(next)}&expired=1`);
     }
 
+    function enforceInactivityLimit() {
+      if (Date.now() - lastActivityAt >= INACTIVITY_TIMEOUT_MS) {
+        void logoutAndRedirect();
+        return true;
+      }
+      return false;
+    }
+
     function resetInactivityTimer() {
       if (timeoutId) window.clearTimeout(timeoutId);
-      timeoutId = window.setTimeout(() => {
-        void logoutAndRedirect();
-      }, INACTIVITY_TIMEOUT_MS);
+      lastActivityAt = Date.now();
+      timeoutId = window.setTimeout(enforceInactivityLimit, INACTIVITY_TIMEOUT_MS);
     }
 
     const interval = window.setInterval(() => void checkSession(), CHECK_INTERVAL_MS);
-    const handleActivity = () => resetInactivityTimer();
+    const handleActivity = () => {
+      if (!loggingOut) resetInactivityTimer();
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState !== "visible") return;
+      if (!enforceInactivityLimit()) void checkSession();
+    };
 
-    window.addEventListener("focus", checkSession);
-    document.addEventListener("visibilitychange", checkSession);
+    window.addEventListener("focus", handleVisibility);
+    document.addEventListener("visibilitychange", handleVisibility);
     for (const eventName of ACTIVITY_EVENTS) {
       window.addEventListener(eventName, handleActivity, { passive: true });
     }
@@ -68,8 +80,8 @@ export function SessionExpiryGuard() {
     return () => {
       window.clearInterval(interval);
       if (timeoutId) window.clearTimeout(timeoutId);
-      window.removeEventListener("focus", checkSession);
-      document.removeEventListener("visibilitychange", checkSession);
+      window.removeEventListener("focus", handleVisibility);
+      document.removeEventListener("visibilitychange", handleVisibility);
       for (const eventName of ACTIVITY_EVENTS) {
         window.removeEventListener(eventName, handleActivity);
       }

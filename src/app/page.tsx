@@ -54,8 +54,8 @@ const PLANS: Array<{ key: SubscriptionPlan; body: string; featured: boolean }> =
 
 const FAQS = [
   { question: "Who is VidyPOS for?", answer: "VidyPOS is built for shops, supermarkets, pharmacies and retail teams that need one place to manage checkout, stock, staff and growth." },
-  { question: "How do I get started?", answer: "Create your shop portal, add products, set inventory, and bring your team in with the permissions they need." },
-  { question: "Can I track different payment methods?", answer: "The POS supports cash, mobile money and card workflows, with payment tracking grouped by till and staff member." },
+  { question: "How do I create and activate my shop?", answer: "Create your shop and enter the owner email. We’ll email a secure activation link; open it and confirm activation on the page. You can also use the six-digit code in the email. The link and code expire after 30 minutes, and you can request a new one if needed." },
+  { question: "Which payment methods can my shop accept?", answer: "The POS supports cash, Ghana POS terminals, and configured Paystack card and Mobile Money checkout. A shop administrator can enable or disable Paystack in Settings; cash and Ghana POS terminal payments remain available independently." },
   { question: "Can I control what each staff member can do?", answer: "Yes. Roles and permissions help limit access to sales, stock, reports and store settings based on responsibility." },
   { question: "How is pricing handled?", answer: "Every shop starts with a 14-day free trial. After that, plans are billed monthly with flexible options for different business sizes." },
   { question: "Where can I get help or learn how my information is used?", answer: "Review our privacy terms in the app and speak with your store administrator for account support and access questions." },
