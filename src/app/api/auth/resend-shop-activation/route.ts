@@ -28,7 +28,12 @@ export async function POST(request: Request) {
           },
         });
         try {
-          await sendStoreActivationEmail({ email, businessName: owner.store.name, code: activation.code });
+          await sendStoreActivationEmail({
+            email,
+            businessName: owner.store.name,
+            code: activation.code,
+            appUrl: new URL(request.url).origin,
+          });
         } catch (error) {
           console.error("[activation] failed to resend shop activation email", error);
         }

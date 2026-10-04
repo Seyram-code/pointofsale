@@ -104,7 +104,12 @@ export async function POST(request: NextRequest) {
     });
 
     try {
-      await sendStoreActivationEmail({ email: ownerEmail, businessName: registered.name, code: activation.code });
+      await sendStoreActivationEmail({
+        email: ownerEmail,
+        businessName: registered.name,
+        code: activation.code,
+        appUrl: new URL(request.url).origin,
+      });
     } catch (error) {
       console.error("[activation] failed to send shop activation email", error);
     }

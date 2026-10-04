@@ -17,6 +17,7 @@ export async function sendStoreActivationEmail(input: {
   email: string;
   businessName: string;
   code: string;
+  appUrl?: string;
 }) {
   const host = process.env.SMTP_HOST;
   const port = Number(process.env.SMTP_PORT ?? 587);
@@ -34,8 +35,20 @@ export async function sendStoreActivationEmail(input: {
     secure: process.env.SMTP_SECURE === "true",
     auth: { user, pass: password },
   });
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
-  const activationUrl = `${appUrl}/activate?email=${encodeURIComponent(input.email)}`;
+  const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+  const isLocalhost = (url: string) => {
+    try {
+      return ["localhost", "127.0.0.1", "::1"].includes(new URL(url).hostname);
+    } catch {
+      return true;
+    }
+  };
+  const appUrl = input.appUrl || (
+    configuredAppUrl && !(process.env.NODE_ENV === "production" && isLocalhost(configuredAppUrl))
+      ? configuredAppUrl
+      : "http://localhost:3000"
+  );
+  const activationUrl = `${appUrl.replace(/\/$/, "")}/activate?email=${encodeURIComponent(input.email)}`;
   const safeBusinessName = input.businessName.replace(/[<>&"']/g, (character) => ({
     "<": "&lt;",
     ">": "&gt;",
