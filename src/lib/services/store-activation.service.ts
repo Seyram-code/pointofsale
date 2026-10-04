@@ -3,6 +3,26 @@ import { createHash, randomInt } from "node:crypto";
 import nodemailer from "nodemailer";
 
 const ACTIVATION_CODE_TTL_MS = 30 * 60 * 1000;
+const PRODUCTION_APP_URL = "https://pos.firstdestltd.com";
+
+function usableAppUrl(value: string | undefined, production: boolean): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" && !(url.protocol === "http:" && !production)) return null;
+    const hostname = url.hostname.toLowerCase();
+    if (production && (
+      hostname === "localhost" ||
+      hostname.endsWith(".localhost") ||
+      hostname === "0.0.0.0" ||
+      hostname === "127.0.0.1" ||
+      hostname === "::1"
+    )) return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
 
 export function createStoreActivationCode() {
   const code = randomInt(0, 1_000_000).toString().padStart(6, "0");
@@ -35,20 +55,13 @@ export async function sendStoreActivationEmail(input: {
     secure: process.env.SMTP_SECURE === "true",
     auth: { user, pass: password },
   });
-  const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL;
-  const isLocalhost = (url: string) => {
-    try {
-      return ["localhost", "127.0.0.1", "::1"].includes(new URL(url).hostname);
-    } catch {
-      return true;
-    }
-  };
-  const appUrl = input.appUrl || (
-    configuredAppUrl && !(process.env.NODE_ENV === "production" && isLocalhost(configuredAppUrl))
-      ? configuredAppUrl
-      : "http://localhost:3000"
-  );
-  const activationUrl = `${appUrl.replace(/\/$/, "")}/activate?email=${encodeURIComponent(input.email)}`;
+  const production = process.env.NODE_ENV === "production";
+  const appUrl = production
+    ? usableAppUrl(process.env.NEXT_PUBLIC_APP_URL, true) ?? PRODUCTION_APP_URL
+    : usableAppUrl(process.env.NEXT_PUBLIC_APP_URL, false)
+      ?? usableAppUrl(input.appUrl, false)
+      ?? "http://localhost:3000";
+  const activationUrl = `${appUrl}/activate?email=${encodeURIComponent(input.email)}`;
   const safeBusinessName = input.businessName.replace(/[<>&"']/g, (character) => ({
     "<": "&lt;",
     ">": "&gt;",
