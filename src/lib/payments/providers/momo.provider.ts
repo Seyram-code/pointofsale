@@ -1,5 +1,6 @@
 import "server-only";
 import { missingKeys, momoConfig, paystackConfig } from "@/lib/payments/config";
+import { getAppUrl } from "@/lib/config/app-url";
 import { PaymentError, PaymentNotConfiguredError } from "@/lib/payments/errors";
 import { normalizeGhanaPhone } from "@/lib/utils/format";
 import { MOMO_NETWORK_PREFIXES } from "@/lib/config/constants";
@@ -108,7 +109,7 @@ export class PaystackMomoProvider implements PaymentProvider {
         reference: request.reference,
         email: request.momo.email,
         channels: ["mobile_money"],
-        callback_url: request.callbackUrl ?? `${process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "")}/pos${request.saleId ? `?payment_sale=${encodeURIComponent(request.saleId)}` : ""}`,
+        callback_url: request.callbackUrl ?? `${getAppUrl()}/pos${request.saleId ? `?payment_sale=${encodeURIComponent(request.saleId)}` : ""}`,
         metadata: {
           sale_id: request.saleId,
           store_id: request.storeId,

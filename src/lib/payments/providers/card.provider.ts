@@ -1,5 +1,6 @@
 import "server-only";
 import { cardConfig, missingKeys } from "@/lib/payments/config";
+import { getAppUrl } from "@/lib/config/app-url";
 import { PaymentNotConfiguredError } from "@/lib/payments/errors";
 import { generateAuthorizationCode, generateExternalReference } from "@/lib/services/id-registry";
 import type { PaymentProvider, PaymentRequest, PaymentResult, WebhookEvent } from "@/lib/payments/types";
@@ -82,7 +83,7 @@ export class LiveCardProvider implements PaymentProvider {
         reference: request.reference,
         email: request.card.email,
         channels: ["card"],
-        callback_url: request.callbackUrl ?? `${process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "")}/pos${request.saleId ? `?payment_sale=${encodeURIComponent(request.saleId)}` : ""}`,
+        callback_url: request.callbackUrl ?? `${getAppUrl()}/pos${request.saleId ? `?payment_sale=${encodeURIComponent(request.saleId)}` : ""}`,
         metadata: { sale_id: request.saleId, store_id: request.storeId, ...request.metadata },
       }),
     });
