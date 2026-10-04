@@ -1,5 +1,5 @@
 import "server-only";
-import { createHash, randomInt } from "node:crypto";
+import { createHash, randomBytes, randomInt } from "node:crypto";
 import nodemailer from "nodemailer";
 
 const ACTIVATION_CODE_TTL_MS = 30 * 60 * 1000;
@@ -33,10 +33,20 @@ export function createStoreActivationCode() {
   };
 }
 
+export function createStoreActivationLinkToken() {
+  const token = randomBytes(32).toString("base64url");
+  return {
+    token,
+    hash: createHash("sha256").update(token).digest("hex"),
+    expiresAt: new Date(Date.now() + ACTIVATION_CODE_TTL_MS),
+  };
+}
+
 export async function sendStoreActivationEmail(input: {
   email: string;
   businessName: string;
   code: string;
+  linkToken: string;
   appUrl?: string;
 }) {
   const host = process.env.SMTP_HOST;
@@ -61,7 +71,7 @@ export async function sendStoreActivationEmail(input: {
     : usableAppUrl(process.env.NEXT_PUBLIC_APP_URL, false)
       ?? usableAppUrl(input.appUrl, false)
       ?? "http://localhost:3000";
-  const activationUrl = `${appUrl}/activate?email=${encodeURIComponent(input.email)}`;
+  const activationUrl = `${appUrl}/activate?email=${encodeURIComponent(input.email)}&token=${encodeURIComponent(input.linkToken)}`;
   const safeBusinessName = input.businessName.replace(/[<>&"']/g, (character) => ({
     "<": "&lt;",
     ">": "&gt;",
@@ -74,7 +84,7 @@ export async function sendStoreActivationEmail(input: {
     from,
     to: input.email,
     subject: `Activate ${input.businessName} on VidyPOS`,
-    text: `Your VidyPOS activation code for ${input.businessName} is ${input.code}. It expires in 30 minutes. Activate your shop at ${activationUrl}`,
-    html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#17201c"><h1 style="font-size:22px">Activate ${safeBusinessName}</h1><p>Enter this code to activate your VidyPOS shop:</p><p style="font-size:32px;font-weight:700;letter-spacing:6px">${input.code}</p><p>This code expires in 30 minutes.</p><p><a href="${activationUrl}">Activate your shop</a></p></div>`,
+    text: `Activate ${input.businessName} by opening this one-time link and clicking Activate shop: ${activationUrl}\n\nOr enter this six-digit fallback code on the activation page: ${input.code}. Both expire in 30 minutes.`,
+    html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#17201c"><h1 style="font-size:22px">Activate ${safeBusinessName}</h1><p>Click below to open the secure activation page. You will confirm activation there.</p><p><a href="${activationUrl}" style="display:inline-block;padding:12px 20px;background:#008f4c;color:#fff;text-decoration:none;border-radius:6px;font-weight:700">Continue to activate shop</a></p><p>This one-time link expires in 30 minutes. If the link does not work, enter this six-digit code on the activation page:</p><p style="font-size:32px;font-weight:700;letter-spacing:6px">${input.code}</p></div>`,
   });
 }

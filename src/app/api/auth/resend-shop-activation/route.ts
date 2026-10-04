@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
 import { handleApiError, ok } from "@/lib/api/response";
-import { createStoreActivationCode, sendStoreActivationEmail } from "@/lib/services/store-activation.service";
+import { createStoreActivationCode, createStoreActivationLinkToken, sendStoreActivationEmail } from "@/lib/services/store-activation.service";
 import { z } from "zod";
 
 const resendSchema = z.object({ email: z.string().trim().email().transform((email) => email.toLowerCase()) });
@@ -18,6 +18,7 @@ export async function POST(request: Request) {
       const sentAt = owner.store.activationCodeSentAt?.getTime() ?? 0;
       if (Date.now() - sentAt >= RESEND_COOLDOWN_MS) {
         const activation = createStoreActivationCode();
+        const activationLink = createStoreActivationLinkToken();
         await prisma.store.update({
           where: { id: owner.store.id },
           data: {
@@ -25,6 +26,8 @@ export async function POST(request: Request) {
             activationCodeExpiresAt: activation.expiresAt,
             activationCodeSentAt: new Date(),
             activationCodeAttempts: 0,
+            activationLinkTokenHash: activationLink.hash,
+            activationLinkExpiresAt: activationLink.expiresAt,
           },
         });
         try {
@@ -32,6 +35,7 @@ export async function POST(request: Request) {
             email,
             businessName: owner.store.name,
             code: activation.code,
+            linkToken: activationLink.token,
             appUrl: new URL(request.url).origin,
           });
         } catch (error) {

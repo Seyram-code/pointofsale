@@ -12,6 +12,7 @@ export function ShopActivationForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState(searchParams.get("email") ?? "");
+  const [token] = useState(searchParams.get("token") ?? "");
   const [code, setCode] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -23,7 +24,7 @@ export function ShopActivationForm() {
     setMessage("");
     setLoading(true);
     try {
-      await api.post("/auth/activate-shop", { email, code });
+      await api.post("/auth/activate-shop", token ? { email, token } : { email, code });
       setMessage("Your shop is activated. Opening your dashboard...");
       router.replace("/dashboard");
       router.refresh();
@@ -51,14 +52,14 @@ export function ShopActivationForm() {
       <CardContent className="p-5 sm:p-6">
         <div className="mb-5 flex items-center gap-3">
           <span className="flex size-10 items-center justify-center rounded-lg bg-brand-50 text-brand-700 dark:bg-brand-950/40 dark:text-brand-300"><MailCheck className="size-5" /></span>
-          <div><h1 className="text-xl font-semibold text-fg">Activate your shop</h1><p className="text-sm text-fg-muted">Enter the six-digit code sent to your owner email.</p></div>
+          <div><h1 className="text-xl font-semibold text-fg">Activate your shop</h1><p className="text-sm text-fg-muted">{token ? "Confirm below to activate your shop." : "Enter the six-digit code sent to your owner email."}</p></div>
         </div>
         <form onSubmit={activate} className="space-y-4">
           <Input label="Owner email" type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} />
-          <Input label="Activation code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} required value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} />
+          {!token && <Input label="Activation code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} required value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} />}
           {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-danger dark:bg-red-950/40">{error}</p>}
           {message && <p role="status" className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">{message}</p>}
-          <Button type="submit" fullWidth loading={loading}>Activate shop</Button>
+          <Button type="submit" fullWidth loading={loading}>{token ? "Confirm and activate shop" : "Activate shop"}</Button>
         </form>
         <Button type="button" variant="secondary" fullWidth className="mt-3" disabled={loading || !email} onClick={resend}>Send a new code</Button>
       </CardContent>

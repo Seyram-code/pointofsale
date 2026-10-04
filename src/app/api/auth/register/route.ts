@@ -5,7 +5,7 @@ import { hashPassword, checkPasswordStrength } from "@/lib/auth/password";
 import { nextShortNumber } from "@/lib/services/numbering.service";
 import { generateBusinessId, generateBranchCode } from "@/lib/services/id-registry";
 import { registrationSchema } from "@/lib/validations/registration.schema";
-import { createStoreActivationCode, sendStoreActivationEmail } from "@/lib/services/store-activation.service";
+import { createStoreActivationCode, createStoreActivationLinkToken, sendStoreActivationEmail } from "@/lib/services/store-activation.service";
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,6 +16,7 @@ export async function POST(request: NextRequest) {
     const businessEmail = input.businessEmail.toLowerCase();
     const passwordHash = await hashPassword(input.password);
     const activation = createStoreActivationCode();
+    const activationLink = createStoreActivationLinkToken();
     const now = new Date();
     const trialEndsAt = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
 
@@ -47,6 +48,8 @@ export async function POST(request: NextRequest) {
           activationCodeExpiresAt: activation.expiresAt,
           activationCodeSentAt: now,
           activationCodeAttempts: 0,
+          activationLinkTokenHash: activationLink.hash,
+          activationLinkExpiresAt: activationLink.expiresAt,
           subscriptions: {
             create: {
               plan: input.plan,
@@ -87,6 +90,7 @@ export async function POST(request: NextRequest) {
         email: ownerEmail,
         businessName: input.businessName,
         code: activation.code,
+        linkToken: activationLink.token,
         appUrl: new URL(request.url).origin,
       });
     } catch (error) {
