@@ -285,6 +285,9 @@ model User {
   passwordHash        String?
   staffAccessCodeHash String?    @unique
   staffAccessCodeEncrypted String?
+  passwordResetTokenHash String? @unique @db.VarChar(64)
+  passwordResetExpiresAt DateTime?
+  passwordResetSentAt    DateTime?
   pinHash             String? // 4-6 digit till PIN
   role                UserRole   @default(CASHIER)
   status              UserStatus @default(ACTIVE)

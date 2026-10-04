@@ -1,23 +1,50 @@
 "use client";
 
 import { useState } from "react";
-import { LifeBuoy } from "lucide-react";
+import { KeyRound, MailCheck } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
-import { publicEnv } from "@/lib/config/env";
+import { Input } from "@/components/ui/Input";
+import { api } from "@/lib/api/client";
 
-/**
- * Password resets are manager-initiated rather than self-service: shop-floor
- * staff often share a store email, so a reset link is not a safe channel.
- */
 export function ForgotPasswordDialog() {
   const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [sending, setSending] = useState(false);
+
+  function close() {
+    setOpen(false);
+    setEmail("");
+    setMessage("");
+    setError("");
+  }
+
+  async function requestReset(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSending(true);
+    setError("");
+    try {
+      await api.post("/auth/request-password-reset", { email });
+      setMessage("If an active account uses that email, a password reset link will be sent shortly. Check your inbox and spam folder.");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not request a password reset. Please try again.");
+    } finally {
+      setSending(false);
+    }
+  }
 
   return (
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setOpen(true);
+          setEmail("");
+          setMessage("");
+          setError("");
+        }}
         className="text-sm font-medium text-brand-600 hover:text-brand-700 hover:underline dark:text-brand-400"
       >
         Forgot password?
@@ -25,36 +52,40 @@ export function ForgotPasswordDialog() {
 
       <Modal
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={close}
         title="Reset your password"
         size="sm"
         footer={
-          <Button onClick={() => setOpen(false)} fullWidth className="sm:w-auto">
-            Got it
+          <Button type={message ? "button" : "submit"} form={message ? undefined : "forgot-password-form"} onClick={message ? close : undefined} loading={sending} fullWidth className="sm:w-auto">
+            {message ? "Got it" : "Send reset link"}
           </Button>
         }
       >
-        <div className="flex gap-3">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-950 dark:text-brand-300">
-            <LifeBuoy className="size-5" />
-          </span>
-          <div className="space-y-3 text-sm text-fg-secondary">
-            <p>
-              For security, passwords are reset by a store manager or administrator — not by email link.
-            </p>
-            <ol className="list-decimal space-y-1 pl-4">
-              <li>Ask your manager to open Employees in the back office.</li>
-              <li>They issue a temporary password for your staff code.</li>
-              <li>You will be asked to set a new password at your next sign-in.</li>
-            </ol>
-            {publicEnv.supportContact && (
-              <p className="rounded-lg bg-muted p-3">
-                Need more help? Contact{" "}
-                <span className="font-medium text-fg">{publicEnv.supportContact}</span>
-              </p>
-            )}
+        {message ? (
+          <div className="flex gap-3" role="status">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-950 dark:text-brand-300">
+              <MailCheck className="size-5" />
+            </span>
+            <p className="text-sm text-fg-secondary">{message}</p>
           </div>
-        </div>
+        ) : (
+          <form id="forgot-password-form" onSubmit={requestReset} className="space-y-4">
+            <p className="text-sm text-fg-secondary">Enter the personal email address registered to your account. We’ll send a one-time reset link if it matches.</p>
+            <Input
+              label="Registered email"
+              type="email"
+              autoComplete="email"
+              autoCapitalize="none"
+              required
+              maxLength={254}
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              leftIcon={<KeyRound className="size-4" />}
+              disabled={sending}
+            />
+            {error && <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
+          </form>
+        )}
       </Modal>
     </>
   );

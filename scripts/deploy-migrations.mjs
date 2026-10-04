@@ -14,6 +14,7 @@ const STAFF_ACCESS_CODE = "20261002120000_add_staff_access_code";
 const ACCESS_CODE_ONLY_EMPLOYEES = "20261002130000_allow_access_code_only_employees";
 const ENCRYPTED_STAFF_ACCESS_CODES = "20261002140000_store_encrypted_staff_access_codes";
 const STORE_EMAIL_ACTIVATION = "20261003100000_add_store_email_activation";
+const PASSWORD_RESET_TOKENS = "20261004160000_add_password_reset_tokens";
 let connection;
 
 async function query(sql, values) {
@@ -148,6 +149,29 @@ async function reconcileStoreEmailActivation(tables, applied) {
   }
 }
 
+async function reconcilePasswordResetTokens(tables, applied) {
+  if (!tables.has("User")) return;
+
+  const columns = await query("SELECT COLUMN_NAME AS columnName FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'User'");
+  const resetColumns = new Set(["passwordResetTokenHash", "passwordResetExpiresAt", "passwordResetSentAt"]);
+  const existingColumns = new Set(columns.map((column) => column.columnName).filter((column) => resetColumns.has(column)));
+  const indexes = await query("SELECT INDEX_NAME AS indexName FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'User' AND INDEX_NAME = 'User_passwordResetTokenHash_key'");
+
+  if (existingColumns.size > 0 && existingColumns.size !== resetColumns.size) {
+    throw new Error("The User password-reset schema is partial; inspect the database before deploying.");
+  }
+  if (existingColumns.size === resetColumns.size && indexes.length === 0) {
+    throw new Error("The User password-reset columns exist without their unique token index; inspect the database before deploying.");
+  }
+  if (existingColumns.size === resetColumns.size && !applied.has(PASSWORD_RESET_TOKENS)) {
+    resolveMigration(PASSWORD_RESET_TOKENS);
+    applied.add(PASSWORD_RESET_TOKENS);
+  }
+  if (applied.has(PASSWORD_RESET_TOKENS) && (existingColumns.size !== resetColumns.size || indexes.length === 0)) {
+    throw new Error("The password-reset migration is recorded as applied, but its schema is incomplete.");
+  }
+}
+
 async function reconcileStaffAccessCodeSchema(tables, applied) {
   if (!tables.has("User")) return;
 
@@ -230,6 +254,7 @@ async function main() {
   await reconcileProductNameMigration(tables);
   await reconcileStaffAccessCodeSchema(tables, currentApplied);
   await reconcileStoreEmailActivation(tables, currentApplied);
+  await reconcilePasswordResetTokens(tables, currentApplied);
   deployMigrations();
 }
 

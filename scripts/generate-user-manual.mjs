@@ -172,7 +172,7 @@ page("02 • Access","Sign in and account menu","Authenticate, recover access, a
  {title:"Enter an identifier",body:"Type your email address or staff code in the identifier field."},
  {title:"Enter your password",body:"Use the password assigned to your account. Select Remember me only on a device you trust."},
  {title:"Submit sign-in",body:"Choose Sign in. If a protected page sent you here, successful authentication returns you to that destination when allowed."},
- {title:"Recover a password",body:"Choose Forgot password and follow the dialog instructions. If recovery is unavailable for your account, ask a store administrator to reset it."},
+ {title:"Recover a password",body:"Choose Forgot password, enter the personal email registered to your account, and open the one-time reset link sent to that inbox. The link expires after 30 minutes. Staff without a personal email should ask a store administrator to reset their password."},
  {title:"Use the account menu",body:"The top-right menu contains My profile, Subscription (for store users), and Sign out. The bell opens notifications; the moon/sun control changes the theme."},
 ],[{title:"Inactivity",body:"Sessions expire after five minutes without activity. You may need to sign in again before continuing a sale or administrative task.",type:"warning"}]);
 
