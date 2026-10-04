@@ -27,6 +27,7 @@ export interface CheckoutResult {
     state: string;
     amount: number;
     message?: string;
+    authorizationUrl?: string;
     failureReason?: string;
   }>;
   receipt: ReceiptPayload | null;
@@ -50,10 +51,12 @@ function toPaymentRequest(
     cash: payment.method === "CASH" ? { tenderedAmount: payment.tenderedAmount ?? payment.amount } : undefined,
     momo:
       payment.method === "MOMO" && payment.momoPhone
-        ? { network: payment.momoNetwork ?? "MTN", phone: payment.momoPhone }
+        ? { network: payment.momoNetwork ?? "MTN", phone: payment.momoPhone, email: payment.momoEmail }
         : undefined,
     terminal: payment.method === "CARD_TERMINAL" ? { terminalId: payment.terminalId } : undefined,
-    card: payment.method === "CARD" ? { scheme: payment.cardScheme, last4: payment.cardLast4 } : undefined,
+    card: payment.method === "CARD"
+      ? { scheme: payment.cardScheme, last4: payment.cardLast4, email: payment.cardEmail }
+      : undefined,
   };
 }
 
@@ -135,6 +138,7 @@ export async function checkout(input: CheckoutInput, context: SaleContext): Prom
         state: entry.result.state,
         amount: entry.result.amount,
         message: entry.result.message,
+        authorizationUrl: entry.result.authorizationUrl,
       })),
       receipt: null,
     };
@@ -486,6 +490,10 @@ export async function refreshPaymentStatus(saleId: string, context: SaleContext)
     if (!provider.getStatus) continue;
 
     const result = await provider.getStatus(payment.externalRef);
+    if (result.state === "SUCCESSFUL" && Math.abs(result.amount - Number(payment.amount)) >= 0.01) {
+      result.state = "PROCESSING";
+      result.failureReason = "Provider amount did not match the sale amount";
+    }
     await persistPaymentResults([{ id: payment.id, result }]);
   }
 
@@ -512,7 +520,20 @@ export async function refreshPaymentStatus(saleId: string, context: SaleContext)
     receipt: null,
   };
 
-  if (!allSettled || sale.status === "COMPLETED") return base;
+  if (!allSettled) return base;
+  if (sale.status === "COMPLETED") {
+    const storedReceipt = await prisma.receipt.findFirst({
+      where: { saleId },
+      orderBy: { createdAt: "desc" },
+      select: { payload: true },
+    });
+    return {
+      ...base,
+      amountPaid: Number(sale.amountPaid),
+      changeDue: Number(sale.changeDue),
+      receipt: storedReceipt ? storedReceipt.payload as unknown as ReceiptPayload : null,
+    };
+  }
 
   const finalised = await finalizeSale(saleId, context);
   return {

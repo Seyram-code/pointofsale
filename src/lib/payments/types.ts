@@ -33,6 +33,7 @@ export interface CashDetails {
 export interface MomoDetails {
   network: MomoNetwork;
   phone: string;
+  email?: string;
 }
 
 export interface TerminalDetails {
@@ -45,6 +46,7 @@ export interface CardDetails {
   token?: string;
   scheme?: string;
   last4?: string;
+  email?: string;
 }
 
 export interface PaymentRequest {
@@ -58,6 +60,8 @@ export interface PaymentRequest {
   storeId: string;
   cashierId: string;
   saleId?: string;
+  callbackUrl?: string;
+  metadata?: Record<string, string>;
   cash?: CashDetails;
   momo?: MomoDetails;
   terminal?: TerminalDetails;
@@ -77,6 +81,7 @@ export interface PaymentResult {
   rrn?: string;
   cardScheme?: string;
   cardLast4?: string;
+  authorizationUrl?: string;
   raw?: Record<string, unknown>;
 }
 
@@ -91,6 +96,8 @@ export interface WebhookEvent {
   externalRef: string;
   state: PaymentState;
   amount?: number;
+  currency?: string;
+  method?: PaymentMethod;
   raw: Record<string, unknown>;
 }
 

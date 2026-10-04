@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Camera, CloudOff, Loader2, ScanBarcode, ShoppingCart } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Input } from "@/components/ui/Input";
@@ -55,7 +56,9 @@ export interface PosTerminalProps {
   categories: PosCategory[];
   permissions: { canDiscount: boolean; canHold: boolean };
   paymentMethods: PosPaymentMethodOption[];
-  mockPaymentDriver: boolean;
+  mockCardDriver: boolean;
+  mockMomoDriver: boolean;
+  storeEmail: string;
 }
 
 interface OfflineDraftPayload {
@@ -77,7 +80,9 @@ const SHORTCUTS = [
   ["F8", "Checkout"],
 ] as const;
 
-export function PosTerminal({ categories, permissions, paymentMethods, mockPaymentDriver }: PosTerminalProps) {
+export function PosTerminal({ categories, permissions, paymentMethods, mockCardDriver, mockMomoDriver, storeEmail }: PosTerminalProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const toast = useToast();
   const cart = useCart();
   const currentUser = useCurrentUser();
@@ -103,6 +108,7 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockPayme
   const [discountOpen, setDiscountOpen] = useState(false);
   const [heldOpen, setHeldOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const returnSaleId = searchParams.get("payment_sale");
   const [clearOpen, setClearOpen] = useState(false);
   const [online, setOnline] = useState(true);
   const [offlineDraftCount, setOfflineDraftCount] = useState(0);
@@ -342,6 +348,15 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockPayme
     searchRef.current?.focus();
   }, [cart]);
 
+  const finishPaymentReturn = useCallback(() => {
+    router.replace("/pos");
+  }, [router]);
+
+  useEffect(() => {
+    if (!returnSaleId) return;
+    setCheckoutOpen(true);
+  }, [returnSaleId]);
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       const keyed = event.key;
@@ -510,8 +525,12 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockPayme
       <PaymentDialog
         open={checkoutOpen}
         total={cart.totals.total}
+        returnSaleId={returnSaleId}
         methods={paymentMethods}
-        mockDriver={mockPaymentDriver}
+        mockCardDriver={mockCardDriver}
+        mockMomoDriver={mockMomoDriver}
+        defaultEmail={storeEmail}
+        onReturnHandled={finishPaymentReturn}
         onClose={() => setCheckoutOpen(false)}
         onSubmit={completeSale}
         onCompleted={() => void loadProducts()}

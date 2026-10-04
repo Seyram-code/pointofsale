@@ -28,7 +28,9 @@ export interface CheckoutPaymentInput {
   tenderedAmount?: number;
   momoNetwork?: "MTN" | "VODAFONE" | "AIRTELTIGO";
   momoPhone?: string;
+  momoEmail?: string;
   terminalId?: string;
+  cardEmail?: string;
 }
 
 export interface CheckoutResponse {
@@ -38,7 +40,7 @@ export interface CheckoutResponse {
   total: number;
   amountPaid: number;
   changeDue: number;
-  payments: Array<{ method: string; state: string; message?: string; failureReason?: string }>;
+  payments: Array<{ method: string; state: string; message?: string; authorizationUrl?: string; failureReason?: string }>;
   receipt: {
     receiptNumber: string;
     issuedAt: string;
@@ -54,22 +56,30 @@ export interface CheckoutResponse {
 export interface PaymentDialogProps {
   open: boolean;
   total: number;
+  returnSaleId?: string | null;
   methods: Array<{ method: PaymentMethod; label: string }>;
-  mockDriver: boolean;
+  mockCardDriver: boolean;
+  mockMomoDriver: boolean;
+  defaultEmail: string;
   onClose: () => void;
   onSubmit: (payments: CheckoutPaymentInput[]) => Promise<CheckoutResponse>;
   onCompleted: () => void;
+  onReturnHandled: () => void;
   onFinish: () => void;
 }
 
 export function PaymentDialog({
   open,
   total,
+  returnSaleId,
   methods,
-  mockDriver,
+  mockCardDriver,
+  mockMomoDriver,
+  defaultEmail,
   onClose,
   onSubmit,
   onCompleted,
+  onReturnHandled,
   onFinish,
 }: PaymentDialogProps) {
   const toast = useToast();
@@ -77,6 +87,8 @@ export function PaymentDialog({
   const [tendered, setTendered] = useState("");
   const [momoNetwork, setMomoNetwork] = useState<"MTN" | "VODAFONE" | "AIRTELTIGO">("MTN");
   const [momoPhone, setMomoPhone] = useState("");
+  const [momoEmail, setMomoEmail] = useState("");
+  const [cardEmail, setCardEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CheckoutResponse | null>(null);
@@ -86,16 +98,45 @@ export function PaymentDialog({
     setMethod("CASH");
     setTendered("");
     setMomoPhone("");
+    setMomoEmail(defaultEmail);
+    setCardEmail(defaultEmail);
     setError(null);
     setResult(null);
-  }, [open]);
+  }, [defaultEmail, open]);
+
+  useEffect(() => {
+    if (!open || !returnSaleId) return;
+    let cancelled = false;
+    setLoading(true);
+    api.get<CheckoutResponse>(`/payments/status/${returnSaleId}`)
+      .then((response) => {
+        if (cancelled) return;
+        setResult(response);
+        if (response.status === "COMPLETED") {
+          toast.success("Payment confirmed", `Order ${response.receiptNumber} was completed successfully.`);
+          onCompleted();
+          onReturnHandled();
+        } else if (response.status === "FAILED") {
+          setError(response.payments.find((payment) => payment.failureReason)?.failureReason ?? "The payment was not completed");
+          onReturnHandled();
+        }
+      })
+      .catch((statusError) => {
+        if (!cancelled) setError(statusError instanceof ApiClientError ? statusError.message : "Could not verify the payment");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [onCompleted, onReturnHandled, open, returnSaleId, toast]);
 
   // While a MoMo prompt or card payment settles, poll until the provider decides.
   useEffect(() => {
     if (!result || result.status !== "AWAITING_PAYMENT") return;
 
     let cancelled = false;
-    const timer = setInterval(async () => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const poll = async () => {
       try {
         const next = await api.get<CheckoutResponse>(`/payments/status/${result.saleId}`);
         if (cancelled) return;
@@ -104,18 +145,24 @@ export function PaymentDialog({
           if (next.status === "COMPLETED") {
             toast.success("Payment confirmed", `Order ${next.receiptNumber} was completed successfully.`);
             onCompleted();
+            if (returnSaleId) onReturnHandled();
+          } else if (next.status === "FAILED" && returnSaleId) {
+            onReturnHandled();
           }
+          return;
         }
       } catch {
-        /* keep polling — a transient network blip should not abort the sale */
+        // Retry transient network/provider errors without overlapping requests.
       }
-    }, 3000);
+      if (!cancelled) timer = setTimeout(poll, 1500);
+    };
+    void poll();
 
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      if (timer) clearTimeout(timer);
     };
-  }, [onCompleted, result, toast]);
+  }, [onCompleted, onReturnHandled, result, returnSaleId, toast]);
 
   const tenderedAmount = Number(tendered) || 0;
   const change = useMemo(() => Math.max(subtractMoney(tenderedAmount, total), 0), [tenderedAmount, total]);
@@ -133,13 +180,27 @@ export function PaymentDialog({
 
   const canConfirm =
     !loading &&
-    (method === "CASH" ? tenderedAmount + 0.001 >= total : method === "MOMO" ? momoPhone.trim().length > 0 : true);
+    (method === "CASH"
+      ? tenderedAmount + 0.001 >= total
+      : method === "MOMO"
+        ? momoPhone.trim().length > 0 && (mockMomoDriver || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(momoEmail.trim()))
+        : method === "CARD" && !mockCardDriver
+          ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cardEmail.trim())
+          : true);
 
   async function confirm() {
     setError(null);
 
     if (method === "MOMO" && !normalizeGhanaPhone(momoPhone)) {
       setError("Enter a valid Ghanaian mobile number, e.g. 024 123 4567");
+      return;
+    }
+    if (method === "MOMO" && !mockMomoDriver && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(momoEmail.trim())) {
+      setError("Enter a valid customer email for Paystack mobile-money checkout");
+      return;
+    }
+    if (method === "CARD" && !mockCardDriver && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cardEmail.trim())) {
+      setError("Enter a valid customer email for Paystack checkout");
       return;
     }
 
@@ -150,8 +211,13 @@ export function PaymentDialog({
         amount: total,
         ...(method === "CASH" ? { tenderedAmount } : {}),
         ...(method === "MOMO"
-          ? { momoNetwork, momoPhone: normalizeGhanaPhone(momoPhone) ?? momoPhone }
+          ? {
+              momoNetwork,
+              momoPhone: normalizeGhanaPhone(momoPhone) ?? momoPhone,
+              ...(!mockMomoDriver ? { momoEmail: momoEmail.trim() } : {}),
+            }
           : {}),
+        ...(method === "CARD" && !mockCardDriver ? { cardEmail: cardEmail.trim() } : {}),
       };
 
       const response = await onSubmit([payment]);
@@ -272,6 +338,14 @@ export function PaymentDialog({
           <p className="mt-1.5 text-sm text-fg-muted">
             This screen updates automatically once the provider confirms.
           </p>
+          {result.payments.find((payment) => payment.authorizationUrl)?.authorizationUrl && (
+            <a
+              href={result.payments.find((payment) => payment.authorizationUrl)?.authorizationUrl}
+              className="mt-4 inline-flex h-11 items-center justify-center rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white hover:bg-brand-700"
+            >
+              Open Paystack checkout
+            </a>
+          )}
           <Money value={result.total} size="xl" className="mt-5" />
         </div>
       </Modal>
@@ -301,7 +375,7 @@ export function PaymentDialog({
         <Money value={total} size="xl" />
       </div>
 
-      {mockDriver && (
+      {((method === "CARD" && mockCardDriver) || (method === "MOMO" && mockMomoDriver)) && (
         <Badge
           variant="neutral"
           size="sm"
@@ -387,6 +461,17 @@ export function PaymentDialog({
             value={momoPhone}
             onChange={(event) => setMomoPhone(event.target.value)}
           />
+          {!mockMomoDriver && (
+            <Input
+              type="email"
+              autoComplete="email"
+              label="Customer email"
+              placeholder="name@example.com"
+              value={momoEmail}
+              onChange={(event) => setMomoEmail(event.target.value)}
+              required
+            />
+          )}
         </div>
       )}
 
@@ -398,10 +483,23 @@ export function PaymentDialog({
       )}
 
       {method === "CARD" && (
-        <p className="mt-4 rounded-lg bg-muted p-3 text-sm text-fg-secondary">
-          A secure payment link is raised with the gateway. Card details are entered by the customer and never stored
-          by this system.
-        </p>
+        <div className="mt-4 space-y-3">
+          {!mockCardDriver && (
+            <Input
+              autoFocus
+              type="email"
+              autoComplete="email"
+              label="Customer email"
+              placeholder="name@example.com"
+              value={cardEmail}
+              onChange={(event) => setCardEmail(event.target.value)}
+              required
+            />
+          )}
+          <p className="rounded-lg bg-muted p-3 text-sm text-fg-secondary">
+            The customer completes payment on Paystack. Card details are entered there and never stored by this system.
+          </p>
+        </div>
       )}
     </Modal>
   );

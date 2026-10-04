@@ -61,6 +61,14 @@ export class LiveCardProvider implements PaymentProvider {
 
   async initiate(request: PaymentRequest): Promise<PaymentResult> {
     const config = this.config();
+    if (!request.card?.email) {
+      return {
+        state: "FAILED",
+        externalRef: null,
+        amount: request.amount,
+        failureReason: "A customer email is required for Paystack checkout",
+      };
+    }
 
     const response = await fetch(`${config.baseUrl}/transaction/initialize`, {
       method: "POST",
@@ -72,27 +80,31 @@ export class LiveCardProvider implements PaymentProvider {
         amount: Math.round(request.amount * 100),
         currency: request.currency,
         reference: request.reference,
+        email: request.card.email,
+        channels: ["card"],
+        callback_url: request.callbackUrl ?? `${process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "")}/pos${request.saleId ? `?payment_sale=${encodeURIComponent(request.saleId)}` : ""}`,
+        metadata: { sale_id: request.saleId, store_id: request.storeId, ...request.metadata },
       }),
     });
 
     const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-
-    if (!response.ok || payload.status !== true) {
+    const data = (payload.data ?? {}) as Record<string, unknown>;
+    const authorizationUrl = String(data.authorization_url ?? "");
+    if (!response.ok || payload.status !== true || !authorizationUrl) {
       return {
         state: "FAILED",
         externalRef: null,
         amount: request.amount,
-        failureReason: String(payload.message ?? `Gateway returned ${response.status}`),
+        failureReason: String(payload.message ?? `Gateway returned ${response.status} without a checkout URL`),
         raw: payload,
       };
     }
-
-    const data = (payload.data ?? {}) as Record<string, unknown>;
     return {
       state: "PROCESSING",
       externalRef: String(data.reference ?? request.reference),
       amount: request.amount,
       message: "Waiting for the customer to complete the card payment",
+      authorizationUrl,
       raw: payload,
     };
   }
@@ -106,7 +118,7 @@ export class LiveCardProvider implements PaymentProvider {
 
     const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
     const data = (payload.data ?? {}) as Record<string, unknown>;
-    const status = String(data.status ?? "").toLowerCase();
+    const status = payload.status === true ? String(data.status ?? "").toLowerCase() : "failed";
     const authorization = (data.authorization ?? {}) as Record<string, unknown>;
 
     return {
@@ -139,10 +151,13 @@ export class LiveCardProvider implements PaymentProvider {
     const payload = JSON.parse(rawBody) as Record<string, unknown>;
     const data = (payload.data ?? {}) as Record<string, unknown>;
 
+    const eventName = String(payload.event ?? "");
     return {
       externalRef: String(data.reference ?? ""),
-      state: payload.event === "charge.success" ? "SUCCESSFUL" : "FAILED",
+      state: eventName === "charge.success" ? "SUCCESSFUL" : eventName === "charge.failed" ? "FAILED" : "PROCESSING",
       amount: Number(data.amount ?? 0) / 100,
+      currency: typeof data.currency === "string" ? data.currency : undefined,
+      method: "CARD",
       raw: payload,
     };
   }

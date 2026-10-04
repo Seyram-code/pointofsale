@@ -1,8 +1,8 @@
 import "server-only";
-import { paymentDriver } from "@/lib/payments/config";
+import { cardPaymentDriver, momoPaymentDriver, paymentDriver } from "@/lib/payments/config";
 import { PaymentError } from "@/lib/payments/errors";
 import { CashProvider } from "@/lib/payments/providers/cash.provider";
-import { LiveMomoProvider, MockMomoProvider } from "@/lib/payments/providers/momo.provider";
+import { LiveMomoProvider, MockMomoProvider, PaystackMomoProvider } from "@/lib/payments/providers/momo.provider";
 import { LiveTerminalProvider, MockTerminalProvider } from "@/lib/payments/providers/terminal.provider";
 import { LiveCardProvider, MockCardProvider } from "@/lib/payments/providers/card.provider";
 import type { PaymentMethod, PaymentProvider } from "@/lib/payments/types";
@@ -19,11 +19,12 @@ export function getPaymentProvider(method: PaymentMethod): PaymentProvider {
     case "CASH":
       return new CashProvider();
     case "MOMO":
-      return live ? new LiveMomoProvider() : new MockMomoProvider();
+      if (momoPaymentDriver() === "mock") return new MockMomoProvider();
+      return process.env.MOMO_PROVIDER === "hubtel" ? new LiveMomoProvider() : new PaystackMomoProvider();
     case "CARD_TERMINAL":
       return live ? new LiveTerminalProvider() : new MockTerminalProvider();
     case "CARD":
-      return live ? new LiveCardProvider() : new MockCardProvider();
+      return cardPaymentDriver() === "live" ? new LiveCardProvider() : new MockCardProvider();
     default:
       throw new PaymentError(`Unsupported payment method: ${method}`, "UNSUPPORTED");
   }
@@ -35,4 +36,12 @@ export function paymentMethodCapabilities(method: PaymentMethod) {
 
 export function isMockDriver() {
   return paymentDriver() === "mock";
+}
+
+export function isMockCardDriver() {
+  return cardPaymentDriver() === "mock";
+}
+
+export function isMockMomoDriver() {
+  return momoPaymentDriver() === "mock";
 }

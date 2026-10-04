@@ -9,6 +9,8 @@ import { generateStoreScopedReference } from "@/lib/services/id-registry";
 import { getPlatformPlanPricing } from "@/lib/services/plan-pricing.service";
 import { normalizePlanKey } from "@/lib/config/plan-features";
 import { normalizeGhanaPhone } from "@/lib/utils/format";
+import { isPaystackEnabled } from "@/lib/services/payment-settings.service";
+import { isPaystackMethod } from "@/lib/payments/config";
 import { z } from "zod";
 
 export async function GET() {
@@ -32,11 +34,13 @@ export async function POST(request: Request) {
   try {
     const session = await authorize(undefined, { allowExpiredSubscription: true });
     if (!session.user.storeId) throw ApiError.badRequest("Your account is not linked to a store");
-    const { plan, paymentMethod, paymentPhone } = z.object({
+    const { plan, paymentMethod, paymentPhone, paymentEmail, reference } = z.object({
       // Trial is granted by the platform at sign-up, so it is never purchasable.
       plan: z.enum(["STARTER", "PREMIUM", "ENTERPRISE"]),
       paymentMethod: z.enum(["CARD", "MOMO"]).optional(),
       paymentPhone: z.string().trim().optional(),
+      paymentEmail: z.string().trim().email().max(254).optional(),
+      reference: z.string().trim().min(1).max(100).optional(),
     }).parse(await request.json());
     const subscription = await prisma.storeSubscription.findFirst({ where: { storeId: session.user.storeId }, orderBy: { createdAt: "desc" } });
     if (!subscription) throw ApiError.notFound("Subscription");
@@ -45,7 +49,7 @@ export async function POST(request: Request) {
     const expired = subscription.status === "CANCELED" || !["TRIALING", "ACTIVE"].includes(subscription.status) || subscription.currentPeriodEnd < now;
     // Compare against the normalised key so legacy rows (e.g. GROWTH) are not re-charged.
     const currentPlan = normalizePlanKey(subscription.plan);
-    if (plan === currentPlan && !expired) return ok({ plan: subscription.plan, status: subscription.status, currentPeriodEnd: subscription.currentPeriodEnd });
+    if (plan === currentPlan && !expired && !reference) return ok({ plan: subscription.plan, status: subscription.status, currentPeriodEnd: subscription.currentPeriodEnd });
 
     let providerId: string | undefined;
     let externalRef: string | null = null;
@@ -54,9 +58,55 @@ export async function POST(request: Request) {
     if (!selectedPlan) throw ApiError.badRequest("This subscription plan is unavailable");
     if (selectedPlan.monthlyPrice !== null) {
       if (!paymentMethod) throw ApiError.badRequest("Choose a payment method for this plan");
-      if (paymentMethod === "MOMO" && !paymentPhone) throw ApiError.badRequest("A Mobile Money number is required");
+      if (!reference && paymentMethod === "MOMO" && !paymentPhone) throw ApiError.badRequest("A Mobile Money number is required");
+      if (!reference && !paymentEmail) throw ApiError.badRequest("A customer email is required for Paystack checkout");
 
       const provider = getPaymentProvider(paymentMethod);
+      if (isPaystackMethod(paymentMethod) && !(await isPaystackEnabled(session.user.storeId))) {
+        throw ApiError.badRequest("Paystack payments are disabled for this shop. Choose another payment method.");
+      }
+      if (reference) {
+        if (!provider.getStatus) throw ApiError.badRequest("This provider cannot verify hosted checkout payments");
+        const verified = await provider.getStatus(reference);
+        if (verified.state !== "SUCCESSFUL" || Math.abs(verified.amount - selectedPlan.monthlyPrice) >= 0.01) {
+          throw ApiError.badRequest("Paystack has not confirmed the correct payment amount yet");
+        }
+        if (provider.id.startsWith("momo.paystack") || provider.id.startsWith("card.live")) {
+          const data = (verified.raw?.data ?? {}) as Record<string, unknown>;
+          const metadataValue = data.metadata;
+          let metadata: Record<string, unknown> = {};
+          if (typeof metadataValue === "string") {
+            try {
+              metadata = JSON.parse(metadataValue) as Record<string, unknown>;
+            } catch {
+              metadata = {};
+            }
+          } else if (metadataValue && typeof metadataValue === "object" && !Array.isArray(metadataValue)) {
+            metadata = metadataValue as Record<string, unknown>;
+          }
+          const expectedChannel = paymentMethod === "MOMO" ? "mobile_money" : "card";
+          const expectedReferencePrefix = `SUB${plan}-${session.user.storeId.slice(0, 8).toUpperCase()}-`;
+          const metadataStore = metadata.subscription_store_id;
+          const metadataPlan = metadata.subscription_plan;
+          const isNewPlanScopedReference = reference.startsWith(expectedReferencePrefix);
+          const isLegacyReference = reference.startsWith(`SUB-${session.user.storeId.slice(0, 8).toUpperCase()}-`) &&
+            String(metadataStore ?? "") === session.user.storeId &&
+            String(metadataPlan ?? "") === plan;
+          const channel = String(data.channel ?? "").toLowerCase();
+          const mismatches: string[] = [];
+          if (String(data.currency ?? "").toUpperCase() !== "GHS") mismatches.push("currency");
+          if (!isNewPlanScopedReference && !isLegacyReference) mismatches.push("store/plan reference");
+          if (isNewPlanScopedReference && channel !== expectedChannel) mismatches.push("payment method");
+          if (!isNewPlanScopedReference && !channel) mismatches.push("payment channel");
+          if (metadataStore !== undefined && String(metadataStore) !== session.user.storeId) mismatches.push("store metadata");
+          if (metadataPlan !== undefined && String(metadataPlan) !== plan) mismatches.push("plan metadata");
+          if (mismatches.length > 0) {
+            throw ApiError.badRequest(`Verified payment mismatch: ${mismatches.join(", ")}. Start a new checkout if you have not paid.`);
+          }
+        }
+        providerId = provider.id;
+        externalRef = verified.externalRef;
+      } else {
       const normalizedPhone = paymentMethod === "MOMO" ? normalizeGhanaPhone(paymentPhone!) : null;
       const momoNetwork = normalizedPhone
         ? Object.entries(MOMO_NETWORK_PREFIXES).find(([, prefixes]) => prefixes.includes(normalizedPhone.slice(0, 3)))?.[0]
@@ -64,24 +114,32 @@ export async function POST(request: Request) {
       if (paymentMethod === "MOMO" && (!normalizedPhone || !momoNetwork)) throw ApiError.badRequest("Enter a valid Ghanaian Mobile Money number");
 
       let paymentResult;
+      const transactionReference = generateStoreScopedReference(session.user.storeId, `SUB${plan}`, 12);
       try {
         paymentResult = await provider.initiate({
           method: paymentMethod,
           amount: selectedPlan.monthlyPrice,
           currency: "GHS",
-          reference: generateStoreScopedReference(session.user.storeId, "SUB", 12),
+          reference: transactionReference,
           description: `${selectedPlan.name} subscription`,
           storeId: session.user.storeId,
           cashierId: session.user.id,
-          momo: paymentMethod === "MOMO" ? { network: momoNetwork as "MTN" | "VODAFONE" | "AIRTELTIGO", phone: normalizedPhone! } : undefined,
+          callbackUrl: `${process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "")}/subscription?reference=${encodeURIComponent(transactionReference)}&plan=${plan}&method=${paymentMethod}`,
+          metadata: { subscription_store_id: session.user.storeId, subscription_plan: plan, payment_method: paymentMethod },
+          momo: paymentMethod === "MOMO" ? { network: momoNetwork as "MTN" | "VODAFONE" | "AIRTELTIGO", phone: normalizedPhone!, email: paymentEmail } : undefined,
+          card: paymentMethod === "CARD" ? { email: paymentEmail } : undefined,
         });
       } catch (error) {
         if (error instanceof PaymentError) throw ApiError.badRequest(error.message);
         throw error;
       }
+      if (paymentResult.state === "PROCESSING" && paymentResult.authorizationUrl) {
+        return ok({ checkoutUrl: paymentResult.authorizationUrl, reference: paymentResult.externalRef });
+      }
       if (paymentResult.state !== "SUCCESSFUL") throw ApiError.badRequest(paymentResult.failureReason ?? paymentResult.message ?? "Payment was not completed");
       providerId = provider.id;
       externalRef = paymentResult.externalRef;
+      }
     }
 
     const data: Prisma.StoreSubscriptionUpdateInput = { plan };

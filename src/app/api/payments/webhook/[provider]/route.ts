@@ -32,13 +32,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const event = await provider.parseWebhook(rawBody, headers);
     if (!event) return fail("UNAUTHORIZED", "Invalid webhook signature", 401);
 
+    if (event.method && event.method !== method) return fail("BAD_REQUEST", "Payment method does not match provider route", 400);
+
     const payment = await prisma.payment.findFirst({
       where: { externalRef: event.externalRef },
-      select: { id: true, saleId: true, status: true, sale: { select: { storeId: true, cashierId: true, status: true } } },
+      select: { id: true, saleId: true, status: true, amount: true, sale: { select: { storeId: true, cashierId: true, status: true } } },
     });
 
     // Always 200 for unknown references so the provider stops retrying.
     if (!payment) return ok({ received: true, matched: false });
+
+    if (
+      event.state === "SUCCESSFUL" &&
+      ((method === "CARD" || providerKey === "momo" && event.currency !== undefined) && event.currency !== "GHS" ||
+        event.amount === undefined || Math.abs(event.amount - Number(payment.amount)) >= 0.01)
+    ) {
+      return ok({ received: true, matched: true, verified: false });
+    }
 
     if (payment.status !== "SUCCESSFUL") {
       await prisma.payment.update({

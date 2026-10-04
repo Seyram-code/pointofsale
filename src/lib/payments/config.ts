@@ -12,6 +12,21 @@ export function paymentDriver(): PaymentDriver {
   return process.env.PAYMENT_DRIVER === "live" ? "live" : "mock";
 }
 
+export function cardPaymentDriver(): PaymentDriver {
+  const configured = process.env.CARD_PAYMENT_DRIVER;
+  return configured === "live" || configured === "mock" ? configured : paymentDriver();
+}
+
+export function momoPaymentDriver(): PaymentDriver {
+  const configured = process.env.MOMO_PAYMENT_DRIVER;
+  return configured === "live" || configured === "mock" ? configured : paymentDriver();
+}
+
+export function isPaystackMethod(method: "CARD" | "MOMO") {
+  if (method === "CARD") return cardConfig().provider === "paystack";
+  return momoConfig().provider === "paystack";
+}
+
 export interface MomoConfig {
   provider: string;
   baseUrl?: string;
@@ -56,6 +71,21 @@ export interface CardConfig {
   publicKey?: string;
   secretKey?: string;
   webhookSecret?: string;
+}
+
+export interface PaystackConfig {
+  baseUrl?: string;
+  secretKey?: string;
+  webhookSecret?: string;
+}
+
+export function paystackConfig(): PaystackConfig {
+  const card = cardConfig();
+  return {
+    baseUrl: card.baseUrl,
+    secretKey: card.secretKey,
+    webhookSecret: card.webhookSecret,
+  };
 }
 
 export function cardConfig(): CardConfig {

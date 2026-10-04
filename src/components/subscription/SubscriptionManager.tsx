@@ -1,17 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, CheckCircle2, CreditCard, LockKeyhole, LoaderCircle, XCircle } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api, ApiClientError } from "@/lib/api/client";
 import { Button } from "@/components/ui/Button";
 import type { PlatformPlanPricing } from "@/lib/services/plan-pricing.service";
 
-export function SubscriptionManager({ currentPlan, plans, paymentPhone: initialPaymentPhone }: { currentPlan: string; plans: PlatformPlanPricing[]; paymentPhone: string }) {
+export function SubscriptionManager({ currentPlan, plans, paymentPhone: initialPaymentPhone, paymentEmail: initialPaymentEmail }: { currentPlan: string; plans: PlatformPlanPricing[]; paymentPhone: string; paymentEmail: string }) {
   const router = useRouter();
   const [plan, setPlan] = useState(currentPlan);
   const [paymentMethod, setPaymentMethod] = useState<"CARD" | "MOMO">("CARD");
   const [paymentPhone, setPaymentPhone] = useState(initialPaymentPhone);
+  const [paymentEmail, setPaymentEmail] = useState(initialPaymentEmail);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -19,24 +20,61 @@ export function SubscriptionManager({ currentPlan, plans, paymentPhone: initialP
   const selectedPlan = plans.find((option) => option.key === plan);
   const requiresPayment = selectedPlan?.monthlyPrice !== null;
 
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const reference = searchParams.get("reference") ?? searchParams.get("trxref");
+    const callbackPlan = searchParams.get("plan");
+    const callbackMethod = searchParams.get("method");
+    if (!reference || !callbackPlan || (callbackMethod !== "CARD" && callbackMethod !== "MOMO")) return;
+
+    let cancelled = false;
+    setSaving(true);
+    setPaymentState("processing");
+    api.post("/subscription", { plan: callbackPlan, paymentMethod: callbackMethod, reference })
+      .then(() => {
+        if (cancelled) return;
+        setPaymentState("success");
+        setMessage("Payment confirmed and your subscription was updated.");
+        router.replace("/subscription");
+        router.refresh();
+      })
+      .catch((callbackError) => {
+        if (cancelled) return;
+        setPaymentState("failure");
+        setError(callbackError instanceof ApiClientError ? callbackError.message : "Could not verify your payment");
+      })
+      .finally(() => {
+        if (!cancelled) setSaving(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [router, searchParams]);
+
   async function changePlan() {
     setSaving(true);
     setPaymentState("processing");
     setMessage("");
     setError("");
     try {
-      const [paymentResult] = await Promise.allSettled([
-        api.post("/subscription", { plan, ...(requiresPayment ? { paymentMethod, paymentPhone } : {}) }),
-        new Promise((resolve) => window.setTimeout(resolve, 4000)),
-      ]);
-      if (paymentResult.status === "rejected") throw paymentResult.reason;
+      if (requiresPayment && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(paymentEmail.trim())) {
+        throw new Error("Enter a valid customer email for Paystack checkout");
+      }
+      const paymentResult = await api.post<{ checkoutUrl?: string; plan?: string }>("/subscription", {
+        plan,
+        ...(requiresPayment ? { paymentMethod, paymentPhone, paymentEmail: paymentEmail.trim() } : {}),
+      });
+      if (paymentResult.checkoutUrl) {
+        window.location.assign(paymentResult.checkoutUrl);
+        return;
+      }
       setMessage("Plan and monthly amount updated successfully.");
       setPaymentState("success");
       await new Promise((resolve) => window.setTimeout(resolve, 2000));
       setSaving(false);
       router.refresh();
     } catch (submissionError) {
-      const failureMessage = submissionError instanceof ApiClientError ? submissionError.message : "Could not update your plan";
+      const failureMessage = submissionError instanceof ApiClientError || submissionError instanceof Error ? submissionError.message : "Could not update your plan";
       setError(failureMessage);
       setPaymentState("failure");
       await new Promise((resolve) => window.setTimeout(resolve, 2000));
@@ -45,7 +83,7 @@ export function SubscriptionManager({ currentPlan, plans, paymentPhone: initialP
   }
 
   return <>
-    <div className="space-y-3">{plans.map((option) => <button key={option.key} type="button" onClick={() => setPlan(option.key)} className={`flex w-full items-center justify-between rounded-lg border p-3 text-left ${plan === option.key ? "border-brand-600 bg-brand-50 dark:bg-brand-950/30" : "border-line bg-card"}`}><span><span className="block text-sm font-medium text-fg">{option.name}</span><span className="block text-xs text-fg-muted">{option.priceLabel}</span></span>{plan === option.key && <Check className="size-4 text-brand-600" />}</button>)}{requiresPayment && <><label className="grid gap-1 text-sm font-medium text-fg" htmlFor="subscription-payment-method">Payment method<select id="subscription-payment-method" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as "CARD" | "MOMO")} className="h-11 rounded-lg border border-line-strong bg-card px-3 text-sm text-fg"><option value="CARD">Card payment</option><option value="MOMO">Mobile Money</option></select></label>{paymentMethod === "MOMO" && <label className="grid gap-1 text-sm font-medium text-fg" htmlFor="subscription-payment-phone">Mobile Money number<input id="subscription-payment-phone" value={paymentPhone} onChange={(event) => setPaymentPhone(event.target.value)} placeholder="024 000 0000" className="h-11 rounded-lg border border-line-strong bg-card px-3 text-sm text-fg" /></label>}<p className="text-xs text-fg-muted">Your plan changes after the payment provider confirms the charge.</p></>}<Button fullWidth loading={saving} onClick={changePlan}>{saving ? "Processing payment" : requiresPayment ? "Pay and update plan" : "Update plan"}</Button>{message && <p role="status" className="text-sm text-success">{message}</p>}{error && <p role="alert" className="text-sm text-danger">{error}</p>}</div>
+    <div className="space-y-3">{plans.map((option) => <button key={option.key} type="button" onClick={() => setPlan(option.key)} className={`flex w-full items-center justify-between rounded-lg border p-3 text-left ${plan === option.key ? "border-brand-600 bg-brand-50 dark:bg-brand-950/30" : "border-line bg-card"}`}><span><span className="block text-sm font-medium text-fg">{option.name}</span><span className="block text-xs text-fg-muted">{option.priceLabel}</span></span>{plan === option.key && <Check className="size-4 text-brand-600" />}</button>)}{requiresPayment && <><label className="grid gap-1 text-sm font-medium text-fg" htmlFor="subscription-payment-method">Payment method<select id="subscription-payment-method" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as "CARD" | "MOMO")} className="h-11 rounded-lg border border-line-strong bg-card px-3 text-sm text-fg"><option value="CARD">Card payment</option><option value="MOMO">Mobile Money</option></select></label><label className="grid gap-1 text-sm font-medium text-fg" htmlFor="subscription-payment-email">Customer email<input id="subscription-payment-email" type="email" autoComplete="email" required value={paymentEmail} onChange={(event) => setPaymentEmail(event.target.value)} placeholder="name@example.com" className="h-11 rounded-lg border border-line-strong bg-card px-3 text-sm text-fg" /></label>{paymentMethod === "MOMO" && <label className="grid gap-1 text-sm font-medium text-fg" htmlFor="subscription-payment-phone">Mobile Money number<input id="subscription-payment-phone" value={paymentPhone} onChange={(event) => setPaymentPhone(event.target.value)} placeholder="024 000 0000" className="h-11 rounded-lg border border-line-strong bg-card px-3 text-sm text-fg" /></label>}<p className="text-xs text-fg-muted">Your plan changes after the payment provider confirms the charge.</p></>}<Button fullWidth loading={saving} onClick={changePlan}>{saving ? "Processing payment" : requiresPayment ? "Pay and update plan" : "Update plan"}</Button>{message && <p role="status" className="text-sm text-success">{message}</p>}{error && <p role="alert" className="text-sm text-danger">{error}</p>}</div>
     {saving && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-5 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="payment-processing-title" aria-describedby="payment-processing-description">
       <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-white/20 bg-card shadow-2xl">
         <div className={`relative overflow-hidden px-6 pb-7 pt-8 text-white ${paymentState === "success" ? "bg-success" : paymentState === "failure" ? "bg-danger" : "bg-brand-700"}`}>

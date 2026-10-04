@@ -22,9 +22,11 @@ export const paymentInputSchema = z.object({
   tenderedAmount: z.coerce.number().nonnegative().optional(),
   momoNetwork: z.enum(["MTN", "VODAFONE", "AIRTELTIGO"]).optional(),
   momoPhone: z.string().trim().max(20).optional(),
+  momoEmail: z.string().trim().email().max(254).optional(),
   terminalId: z.string().trim().max(60).optional(),
   cardScheme: z.string().trim().max(30).optional(),
   cardLast4: z.string().trim().regex(/^\d{4}$/).optional(),
+  cardEmail: z.string().trim().email().max(254).optional(),
 });
 
 export type PaymentInput = z.infer<typeof paymentInputSchema>;

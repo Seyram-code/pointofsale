@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight, Check, MailCheck } from "lucide-react";
 import { api, ApiClientError } from "@/lib/api/client";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -97,7 +97,7 @@ export function RegisterForm({ platformMode = false }: { platformMode?: boolean 
           <Input label="Business address" name="address" required placeholder="Street or plot" containerClassName="sm:col-span-2" />
           <Input label="City" name="city" required placeholder="Accra" />
           <RegionSelect label="Region" name="region" required />
-          <Input label="Country" name="country" required placeholder="Ghana" />
+          <Input label="Country" name="country" required defaultValue="Ghana" placeholder="Ghana" />
           <Input label="Logo URL" name="logoUrl" placeholder="https://example.com/logo.png" />
           <Input label="Currency" name="currency" required defaultValue="GHS" />
           <Input label="Tax settings" name="taxSettings" placeholder="VAT 15%" containerClassName="sm:col-span-2" />
@@ -112,6 +112,15 @@ export function RegisterForm({ platformMode = false }: { platformMode?: boolean 
         {PLANS.map((option) => <button key={option.value} type="button" onClick={() => setPlan(option.value)} className={`flex items-center justify-between rounded-lg border p-3 text-left ${plan === option.value ? "border-brand-600 bg-brand-50 dark:bg-brand-950/30" : "border-line bg-card"}`}><span><span className="block text-sm font-medium text-fg">{option.name}</span><span className="block text-xs text-fg-muted">{option.description}</span></span><span className="flex items-center gap-2 text-xs font-semibold text-fg-secondary">{option.price}{plan === option.value && <Check className="size-4 text-brand-600" />}</span></button>)}
       </div></div>
       {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-danger dark:bg-red-950/40">{error}</p>}
+      {!platformMode && (
+        <div className="flex items-start gap-3 rounded-lg border border-brand-300 bg-brand-50 px-4 py-3 text-brand-950 dark:border-brand-700 dark:bg-brand-950/40 dark:text-brand-100">
+          <MailCheck className="mt-0.5 size-5 shrink-0 text-brand-700 dark:text-brand-300" aria-hidden="true" />
+          <div>
+            <p className="text-sm font-semibold">Email confirmation required</p>
+            <p className="mt-0.5 text-sm leading-5">We’ll send a confirmation code to the owner email above. You’ll need it to activate your shop.</p>
+          </div>
+        </div>
+      )}
       <Button type="submit" fullWidth loading={saving} rightIcon={<ArrowRight className="size-4" />}>{platformMode ? "Register business" : "Start 14-day free trial"}</Button>
       {!platformMode && <p className="text-center text-sm text-fg-muted">Already have an account? <Link href="/login" className="font-medium text-brand-600 hover:underline">Sign in</Link></p>}
     </form>

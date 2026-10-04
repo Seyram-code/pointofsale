@@ -20,7 +20,10 @@ export default async function SubscriptionPage() {
   const session = await requireSession("/subscription");
   if (session.user.isEmployee || session.user.role === "SUPER_ADMIN") redirect("/forbidden");
   if (!session.user.storeId) redirect("/forbidden");
-  const subscription = await prisma.storeSubscription.findFirst({ where: { storeId: session.user.storeId }, orderBy: { createdAt: "desc" }, include: { store: { select: { phone: true } } } });
+  const [subscription, account] = await Promise.all([
+    prisma.storeSubscription.findFirst({ where: { storeId: session.user.storeId }, orderBy: { createdAt: "desc" }, include: { store: { select: { phone: true } } } }),
+    prisma.user.findUnique({ where: { id: session.user.id }, select: { email: true } }),
+  ]);
   const pricing = await getPlatformPlanPricing();
   const currentPlanKey = subscription ? normalizePlanKey(subscription.plan) : null;
   // Trial is granted at sign-up by the platform, not bought, so it is never offered here.
@@ -47,7 +50,7 @@ export default async function SubscriptionPage() {
           <p className="text-xs text-fg-muted">{expired ? "This shop is blocked until an active renewal is paid for." : `Access remains active until ${accessEnd.toLocaleDateString("en-GH")}.`}</p>
         </div><div className="mt-6 grid gap-3 text-sm sm:grid-cols-2"><div className="flex items-center gap-2 text-fg-secondary"><CalendarDays className="size-4" />Access until {accessEnd.toLocaleDateString("en-GH")}</div><div className="flex items-center gap-2 text-fg-secondary"><ShieldCheck className="size-4" />{subscription.provider ? `Billing via ${subscription.provider}` : "Billing provider setup pending"}</div></div></> : <p className="text-sm text-fg-muted">No subscription is configured for this portal.</p>}
       </CardContent></Card>
-      <Card><CardHeader><CardTitle>{expired ? "Renew your subscription" : status === "TRIALING" ? "Choose your plan" : "Update your plan"}</CardTitle></CardHeader><CardContent>{subscription && plan ? <SubscriptionManager currentPlan={plan.key} plans={selectablePlans} paymentPhone={subscription.store.phone ?? ""} /> : <p className="text-sm leading-6 text-fg-secondary">No subscription is configured for this portal.</p>}</CardContent></Card>
+      <Card><CardHeader><CardTitle>{expired ? "Renew your subscription" : status === "TRIALING" ? "Choose your plan" : "Update your plan"}</CardTitle></CardHeader><CardContent>{subscription && plan ? <SubscriptionManager currentPlan={plan.key} plans={selectablePlans} paymentPhone={subscription.store.phone ?? ""} paymentEmail={account?.email ?? ""} /> : <p className="text-sm leading-6 text-fg-secondary">No subscription is configured for this portal.</p>}</CardContent></Card>
     </div>
 
     <PlatformFeatureChecklist plan={subscription?.plan ?? "STARTER"} />
