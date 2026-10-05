@@ -2,7 +2,7 @@ import "server-only";
 import { cardConfig, missingKeys } from "@/lib/payments/config";
 import { getAppUrl } from "@/lib/config/app-url";
 import { PaymentNotConfiguredError } from "@/lib/payments/errors";
-import { mapPaystackStatus } from "@/lib/payments/paystack-status";
+import { isSuccessfulPaystackCard, mapPaystackVerificationStatus, paystackFailureReason } from "@/lib/payments/paystack-status";
 import { generateAuthorizationCode, generateExternalReference } from "@/lib/services/id-registry";
 import type { PaymentProvider, PaymentRequest, PaymentResult, WebhookEvent } from "@/lib/payments/types";
 
@@ -121,13 +121,27 @@ export class LiveCardProvider implements PaymentProvider {
 
     const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
     const data = (payload.data ?? {}) as Record<string, unknown>;
-    const status = payload.status === true ? String(data.status ?? "").toLowerCase() : "failed";
+    const status = String(data.status ?? "").toLowerCase();
+    const channel = String(data.channel ?? "");
+    const currency = String(data.currency ?? "");
     const authorization = (data.authorization ?? {}) as Record<string, unknown>;
 
+    const verified = payload.status === true;
+    const isSuccessful = isSuccessfulPaystackCard(verified, status, channel, currency);
+    const state = isSuccessful
+      ? "SUCCESSFUL"
+      : verified && status === "success"
+        ? "FAILED"
+        : mapPaystackVerificationStatus(verified, status);
     return {
-      state: mapPaystackStatus(status),
+      state,
       externalRef,
       amount: Number(data.amount ?? 0) / 100,
+      failureReason: state === "FAILED"
+        ? status === "success"
+          ? "Verified transaction was not GHS card payment"
+          : paystackFailureReason(status)
+        : undefined,
       cardScheme: authorization.brand ? String(authorization.brand).toUpperCase() : undefined,
       cardLast4: authorization.last4 ? String(authorization.last4) : undefined,
       raw: payload,

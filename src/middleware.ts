@@ -22,6 +22,7 @@ const PUBLIC_PATHS = [
   "/api/auth/request-password-reset",
   "/api/auth/reset-password",
   "/api/health",
+  "/api/cron/reconcile-payments",
   // Provider callbacks authenticate by signature, not by session.
   "/api/payments/webhook",
 ];

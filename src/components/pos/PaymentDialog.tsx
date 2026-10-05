@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, Loader2, Printer } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
@@ -40,6 +40,7 @@ export interface CheckoutResponse {
   total: number;
   amountPaid: number;
   changeDue: number;
+  orderItems?: Array<{ productId: string; sku: string; quantity: number }>;
   payments: Array<{ method: string; state: string; message?: string; authorizationUrl?: string; failureReason?: string }>;
   receipt: {
     receiptNumber: string;
@@ -65,6 +66,7 @@ export interface PaymentDialogProps {
   onSubmit: (payments: CheckoutPaymentInput[]) => Promise<CheckoutResponse>;
   onCompleted: () => void;
   onReturnHandled: () => void;
+  onRestoreOrder: (items: Array<{ productId: string; sku: string; quantity: number }>) => Promise<void>;
   onFinish: () => void;
 }
 
@@ -80,6 +82,7 @@ export function PaymentDialog({
   onSubmit,
   onCompleted,
   onReturnHandled,
+  onRestoreOrder,
   onFinish,
 }: PaymentDialogProps) {
   const toast = useToast();
@@ -92,6 +95,15 @@ export function PaymentDialog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CheckoutResponse | null>(null);
+  const [restoringOrder, setRestoringOrder] = useState(false);
+  const notifiedCompletedSaleRef = useRef<string | null>(null);
+
+  const notifyCompleted = useCallback((response: CheckoutResponse) => {
+    if (notifiedCompletedSaleRef.current === response.saleId) return;
+    notifiedCompletedSaleRef.current = response.saleId;
+    toast.success("Payment confirmed", `Order ${response.receiptNumber} was completed successfully.`);
+    onCompleted();
+  }, [onCompleted, toast]);
 
   useEffect(() => {
     if (!open) return;
@@ -113,9 +125,7 @@ export function PaymentDialog({
         if (cancelled) return;
         setResult(response);
         if (response.status === "COMPLETED") {
-          toast.success("Payment confirmed", `Order ${response.receiptNumber} was completed successfully.`);
-          onCompleted();
-          onReturnHandled();
+          notifyCompleted(response);
         } else if (response.status === "FAILED") {
           setError(response.payments.find((payment) => payment.failureReason)?.failureReason ?? "The payment was not completed");
           onReturnHandled();
@@ -128,7 +138,7 @@ export function PaymentDialog({
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [onCompleted, onReturnHandled, open, returnSaleId, toast]);
+  }, [notifyCompleted, onReturnHandled, open, returnSaleId]);
 
   // While a MoMo prompt or card payment settles, poll until the provider decides.
   useEffect(() => {
@@ -143,9 +153,7 @@ export function PaymentDialog({
         if (next.status !== "AWAITING_PAYMENT") {
           setResult(next);
           if (next.status === "COMPLETED") {
-            toast.success("Payment confirmed", `Order ${next.receiptNumber} was completed successfully.`);
-            onCompleted();
-            if (returnSaleId) onReturnHandled();
+            notifyCompleted(next);
           } else if (next.status === "FAILED" && returnSaleId) {
             onReturnHandled();
           }
@@ -154,7 +162,7 @@ export function PaymentDialog({
       } catch {
         // Retry transient network/provider errors without overlapping requests.
       }
-      if (!cancelled) timer = setTimeout(poll, 1500);
+      if (!cancelled) timer = setTimeout(poll, 1000);
     };
     void poll();
 
@@ -162,7 +170,7 @@ export function PaymentDialog({
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [onCompleted, onReturnHandled, result, returnSaleId, toast]);
+  }, [notifyCompleted, onReturnHandled, result, returnSaleId]);
 
   const tenderedAmount = Number(tendered) || 0;
   const change = useMemo(() => Math.max(subtractMoney(tenderedAmount, total), 0), [tenderedAmount, total]);
@@ -226,8 +234,10 @@ export function PaymentDialog({
       if (response.status === "FAILED") {
         setError(response.payments.find((p) => p.failureReason)?.failureReason ?? "The payment was declined");
       } else if (response.status === "COMPLETED") {
-        toast.success("Payment confirmed", `Order ${response.receiptNumber} was completed successfully.`);
-        onCompleted();
+        notifyCompleted(response);
+      } else {
+        const authorizationUrl = response.payments.find((p) => p.authorizationUrl)?.authorizationUrl;
+        if (authorizationUrl) window.location.assign(authorizationUrl);
       }
     } catch (submitError) {
       setError(submitError instanceof ApiClientError ? submitError.message : "Could not complete the sale");
@@ -322,6 +332,56 @@ export function PaymentDialog({
               <p className="print-brand-footer mt-2 text-center text-xs text-fg-muted">POS by First Dest (0598925563)</p>
             </div>
           )}
+        </div>
+      </Modal>
+    );
+  }
+
+  if (result?.status === "FAILED") {
+    const failureReason = result.payments.find((payment) => payment.failureReason)?.failureReason ?? error ?? "The payment was not completed";
+
+    return (
+      <Modal
+        open={open}
+        onClose={onFinish}
+        title="Payment not completed"
+        size="sm"
+        closeOnBackdrop={false}
+        footer={
+          <div className="mb-2 flex w-full justify-between gap-3">
+            <Button variant="outline" onClick={onFinish}>Close</Button>
+            {result.orderItems && result.orderItems.length > 0 && (
+              <Button
+                size="lg"
+                loading={restoringOrder}
+                onClick={async () => {
+                  setRestoringOrder(true);
+                  try {
+                    await onRestoreOrder(result.orderItems!);
+                  } catch (restoreError) {
+                    setError(restoreError instanceof Error ? restoreError.message : "Could not restore the order");
+                  } finally {
+                    setRestoringOrder(false);
+                  }
+                }}
+              >
+                Restore order
+              </Button>
+            )}
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <div className="flex items-baseline justify-between rounded-xl bg-brand-600 px-4 py-3 text-white">
+            <span className="text-sm">Amount due</span>
+            <Money value={result.total} size="xl" />
+          </div>
+          <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-danger dark:border-red-900 dark:bg-red-950/40">
+            <AlertCircle className="mt-0.5 size-4 shrink-0" />
+            <span>{failureReason}</span>
+          </div>
+          <p className="text-sm text-fg-muted">No receipt was issued because payment was not confirmed. Restoring the order won&apos;t create another sale or charge.</p>
+          {error && <p role="alert" className="text-sm text-danger">{error}</p>}
         </div>
       </Modal>
     );

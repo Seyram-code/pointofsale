@@ -374,6 +374,31 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockCardD
     router.replace("/pos");
   }, [router]);
 
+  const handlePaymentCompleted = useCallback(() => {
+    void loadProducts();
+    if (returnSaleId) router.replace("/pos");
+  }, [loadProducts, returnSaleId, router]);
+
+  const restoreFailedOrder = useCallback(async (items: Array<{ productId: string; sku: string; quantity: number }>) => {
+    const productsForOrder = await Promise.all(items.map(async (item) => {
+      const matches = await api.get<PosProduct[]>(`/products/search${buildQuery({ q: item.sku, limit: 1 })}`);
+      const product = matches.find((entry) => entry.id === item.productId);
+      if (!product) throw new Error(`${item.sku} is no longer available. Check the sale before retrying.`);
+      if (product.trackStock && product.stock < item.quantity) {
+        throw new Error(`Only ${product.stock} unit(s) of ${product.name} are available now.`);
+      }
+      return { product, quantity: item.quantity };
+    }));
+
+    cart.setLines(productsForOrder.map(({ product, quantity }) => ({
+      ...toCartLine(product),
+      quantity,
+    })));
+    setCheckoutOpen(false);
+    setCartOpen(false);
+    if (returnSaleId) router.replace("/pos");
+  }, [cart, returnSaleId, router, toCartLine]);
+
   useEffect(() => {
     if (!returnSaleId) return;
     setCheckoutOpen(true);
@@ -568,9 +593,10 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockCardD
         mockMomoDriver={mockMomoDriver}
         defaultEmail={storeEmail}
         onReturnHandled={finishPaymentReturn}
+        onRestoreOrder={restoreFailedOrder}
         onClose={() => setCheckoutOpen(false)}
         onSubmit={completeSale}
-        onCompleted={() => void loadProducts()}
+        onCompleted={handlePaymentCompleted}
         onFinish={finishSale}
       />
 

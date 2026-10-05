@@ -178,6 +178,24 @@ export async function getHeldSale(storeId: string, saleId: string) {
 }
 
 export async function discardHeldSale(storeId: string, saleId: string) {
-  const result = await prisma.sale.deleteMany({ where: { id: saleId, storeId, status: "DRAFT" } });
-  if (result.count === 0) throw ApiError.notFound("Held sale");
+  await prisma.$transaction(async (tx) => {
+    const draft = await tx.sale.findFirst({
+      where: { id: saleId, storeId, status: "DRAFT" },
+      select: { id: true, payments: { select: { id: true }, take: 1 } },
+    });
+    if (!draft) throw ApiError.notFound("Held sale");
+
+    const hasReservation = await tx.stockMovement.findFirst({
+      where: { referenceId: saleId, referenceType: "SALE_RESERVATION" },
+      select: { id: true },
+    });
+    if (draft.payments.length > 0 || hasReservation) {
+      throw ApiError.conflict("This sale has a payment attempt and cannot be discarded. Reconcile its payment status first.");
+    }
+
+    const result = await tx.sale.deleteMany({
+      where: { id: saleId, storeId, status: "DRAFT", payments: { none: {} } },
+    });
+    if (result.count !== 1) throw ApiError.conflict("This sale changed and can no longer be discarded.");
+  });
 }

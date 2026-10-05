@@ -21,6 +21,7 @@ export interface CheckoutResult {
   amountPaid: number;
   changeDue: number;
   itemCount: number;
+  orderItems?: Array<{ productId: string; sku: string; quantity: number }>;
   payments: Array<{
     id: string;
     method: string;
@@ -70,7 +71,7 @@ function toPaymentRequest(
  *   2. call the provider(s)
  *   3. finalise (or fail) in a second transaction
  */
-export async function checkout(input: CheckoutInput, context: SaleContext): Promise<CheckoutResult> {
+export async function checkout(input: CheckoutInput, context: SaleContext & { appUrl?: string }): Promise<CheckoutResult> {
   const cart = await priceCart(context.storeId, input.items, input.discount, context.allowPriceOverride);
 
   const requestedTotal = addMoney(...input.payments.map((payment) => payment.amount));
@@ -85,7 +86,11 @@ export async function checkout(input: CheckoutInput, context: SaleContext): Prom
   for (const row of paymentRows) {
     const provider = getPaymentProvider(row.input.method);
     try {
-      const result = await provider.initiate(toPaymentRequest(row.input, context, receiptNumber, saleId, row.id));
+      const paymentRequest = toPaymentRequest(row.input, context, receiptNumber, saleId, row.id);
+      if (process.env.NODE_ENV !== "production" && context.appUrl) {
+        paymentRequest.callbackUrl = `${context.appUrl}/pos?payment_sale=${encodeURIComponent(saleId)}`;
+      }
+      const result = await provider.initiate(paymentRequest);
       results.push({ id: row.id, input: row.input, result });
       if (result.state === "FAILED" || result.state === "CANCELLED") break;
     } catch (error) {
@@ -114,6 +119,7 @@ export async function checkout(input: CheckoutInput, context: SaleContext): Prom
       amountPaid: 0,
       changeDue: 0,
       itemCount: cart.lines.length,
+      orderItems: cart.lines.map((line) => ({ productId: line.productId, sku: line.sku, quantity: line.quantity })),
       payments: results.map((entry) => ({
         id: entry.id,
         method: entry.input.method,
@@ -480,7 +486,7 @@ export async function finalizeSale(saleId: string, context: SaleContext) {
 export async function refreshPaymentStatus(saleId: string, context: SaleContext): Promise<CheckoutResult> {
   const sale = await prisma.sale.findFirst({
     where: { id: saleId, storeId: context.storeId },
-    include: { payments: true },
+    include: { payments: true, items: true },
   });
 
   if (!sale) throw ApiError.notFound("Sale");
@@ -500,7 +506,7 @@ export async function refreshPaymentStatus(saleId: string, context: SaleContext)
     await persistPaymentResults([{ id: payment.id, result }]);
   }
 
-  const refreshed = await prisma.payment.findMany({ where: { saleId }, select: { id: true, method: true, status: true, amount: true } });
+  const refreshed = await prisma.payment.findMany({ where: { saleId }, select: { id: true, method: true, status: true, amount: true, failureReason: true } });
   if (refreshed.some((payment) => payment.status === "FAILED" || payment.status === "CANCELLED")) {
     await releaseSaleStock(saleId, context);
   }
@@ -514,11 +520,15 @@ export async function refreshPaymentStatus(saleId: string, context: SaleContext)
     amountPaid: 0,
     changeDue: 0,
     itemCount: sale.itemCount,
+    ...(refreshed.some((payment) => payment.status === "FAILED" || payment.status === "CANCELLED")
+      ? { orderItems: sale.items.map((item) => ({ productId: item.productId, sku: item.sku, quantity: Number(item.quantity) })) }
+      : {}),
     payments: refreshed.map((payment) => ({
       id: payment.id,
       method: payment.method,
       state: payment.status,
       amount: Number(payment.amount),
+      failureReason: payment.failureReason ?? undefined,
     })),
     receipt: null,
   };
@@ -546,6 +556,68 @@ export async function refreshPaymentStatus(saleId: string, context: SaleContext)
     changeDue: finalised.changeDue,
     receipt: finalised.receipt,
   };
+}
+
+/** Reconcile older in-flight hosted payments when the till is no longer polling. */
+export async function reconcileStalePayments(options: { olderThan: Date; limit?: number }) {
+  const limit = options.limit ?? 50;
+  const payments = await prisma.payment.findMany({
+    where: {
+      status: { in: ["PENDING", "PROCESSING"] },
+      externalRef: { not: null },
+      method: { in: ["MOMO", "CARD"] },
+      sale: { status: "DRAFT", createdAt: { lte: options.olderThan } },
+    },
+    orderBy: { createdAt: "asc" },
+    take: limit,
+    select: {
+      id: true,
+      saleId: true,
+      method: true,
+      amount: true,
+      externalRef: true,
+      sale: { select: { storeId: true, cashierId: true } },
+    },
+  });
+
+  let checked = 0;
+  let completed = 0;
+  let failed = 0;
+
+  for (const payment of payments) {
+    if (!payment.externalRef) continue;
+    checked += 1;
+    try {
+      const result = await getPaymentProvider(payment.method as "MOMO" | "CARD").getStatus?.(payment.externalRef);
+      if (!result || (result.state !== "SUCCESSFUL" && result.state !== "FAILED" && result.state !== "CANCELLED")) continue;
+
+      if (result.state === "SUCCESSFUL" && Math.abs(result.amount - Number(payment.amount)) >= 0.01) {
+        result.state = "PROCESSING";
+        result.failureReason = "Provider amount did not match the sale amount";
+      }
+
+      await persistPaymentResults([{ id: payment.id, result }]);
+
+      if (result.state === "SUCCESSFUL") {
+        await finalizeSale(payment.saleId, {
+          storeId: payment.sale.storeId,
+          cashierId: payment.sale.cashierId,
+          allowPriceOverride: false,
+        });
+        completed += 1;
+      } else if (result.state === "FAILED" || result.state === "CANCELLED") {
+        await releaseSaleStock(payment.saleId, {
+          storeId: payment.sale.storeId,
+          cashierId: payment.sale.cashierId,
+        });
+        failed += 1;
+      }
+    } catch {
+      // Keep transient gateway or database failures pending for the next run.
+    }
+  }
+
+  return { checked, completed, failed };
 }
 
 export type { Prisma };

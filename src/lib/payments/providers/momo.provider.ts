@@ -2,7 +2,7 @@ import "server-only";
 import { missingKeys, momoConfig, paystackConfig } from "@/lib/payments/config";
 import { getAppUrl } from "@/lib/config/app-url";
 import { PaymentError, PaymentNotConfiguredError } from "@/lib/payments/errors";
-import { mapPaystackStatus } from "@/lib/payments/paystack-status";
+import { isSuccessfulPaystackMomo, mapPaystackVerificationStatus, paystackFailureReason } from "@/lib/payments/paystack-status";
 import { normalizeGhanaPhone } from "@/lib/utils/format";
 import { MOMO_NETWORK_PREFIXES } from "@/lib/config/constants";
 import { generateExternalReference } from "@/lib/services/id-registry";
@@ -152,16 +152,24 @@ export class PaystackMomoProvider implements PaymentProvider {
     });
     const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
     const data = (payload.data ?? {}) as Record<string, unknown>;
-    const status = payload.status === true ? String(data.status ?? "").toLowerCase() : "failed";
-    const isMobileMoney = String(data.channel ?? "").toLowerCase() === "mobile_money";
-    const isGhs = String(data.currency ?? "").toUpperCase() === "GHS";
-    const isSuccessful = status === "success" && isMobileMoney && isGhs;
+    const status = String(data.status ?? "").toLowerCase();
+    const channel = String(data.channel ?? "");
+    const currency = String(data.currency ?? "");
+    const isSuccessful = isSuccessfulPaystackMomo(payload.status === true, status, channel, currency);
+    const verified = payload.status === true;
+    const state = isSuccessful
+      ? "SUCCESSFUL"
+      : verified && status === "success"
+        ? "FAILED"
+        : mapPaystackVerificationStatus(verified, status);
 
     return {
-      state: isSuccessful ? "SUCCESSFUL" : status === "success" ? "FAILED" : mapPaystackStatus(status),
+      state,
       externalRef,
       amount: Number(data.amount ?? 0) / 100,
-      failureReason: status === "success" && !isSuccessful ? "Verified transaction was not GHS mobile money" : undefined,
+      failureReason: verified && status === "success" && !isSuccessful
+        ? "Verified transaction was not GHS mobile money"
+        : paystackFailureReason(status),
       raw: payload,
     };
   }

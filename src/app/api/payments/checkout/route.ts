@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
       storeId: session.user.storeId,
       cashierId: session.user.id,
       allowPriceOverride: session.user.permissions.includes(PERMISSIONS.POS_PRICE_OVERRIDE),
+      appUrl: new URL(request.url).origin,
     });
 
     await recordAudit({
