@@ -54,7 +54,7 @@ export interface PaymentRequest {
   /** Amount in Ghana Cedi, already rounded to 2dp by the pricing engine. */
   amount: number;
   currency: "GHS";
-  /** Receipt number — shown to the customer on their MoMo prompt. */
+  /** Unique payment reference sent to the provider; customer receipt is separate metadata. */
   reference: string;
   description?: string;
   storeId: string;

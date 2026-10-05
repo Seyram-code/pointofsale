@@ -36,18 +36,21 @@ export interface CheckoutResult {
 function toPaymentRequest(
   payment: PaymentInput,
   context: SaleContext,
-  reference: string,
+  receiptNumber: string,
   saleId: string,
+  paymentId: string,
 ): PaymentRequest {
+  const paymentReference = `POS-${saleId}-${paymentId}`;
   return {
     method: payment.method,
     amount: payment.amount,
     currency: "GHS",
-    reference,
-    description: `Sale ${reference}`,
+    reference: paymentReference,
+    description: `Sale ${receiptNumber}`,
     storeId: context.storeId,
     cashierId: context.cashierId,
     saleId,
+    metadata: { receipt_number: receiptNumber },
     cash: payment.method === "CASH" ? { tenderedAmount: payment.tenderedAmount ?? payment.amount } : undefined,
     momo:
       payment.method === "MOMO" && payment.momoPhone
@@ -82,7 +85,7 @@ export async function checkout(input: CheckoutInput, context: SaleContext): Prom
   for (const row of paymentRows) {
     const provider = getPaymentProvider(row.input.method);
     try {
-      const result = await provider.initiate(toPaymentRequest(row.input, context, receiptNumber, saleId));
+      const result = await provider.initiate(toPaymentRequest(row.input, context, receiptNumber, saleId, row.id));
       results.push({ id: row.id, input: row.input, result });
       if (result.state === "FAILED" || result.state === "CANCELLED") break;
     } catch (error) {
