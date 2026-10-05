@@ -81,7 +81,7 @@ export function Modal({
       >
         <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-line-strong sm:hidden" aria-hidden />
         {(title || description) && (
-          <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3.5 sm:px-5">
+          <div className="no-print flex items-start justify-between gap-3 border-b border-line px-4 py-3.5 sm:px-5">
             <div className="min-w-0">
               {title && <h2 className="truncate text-base font-semibold text-fg">{title}</h2>}
               {description && <p className="mt-0.5 text-sm text-fg-muted">{description}</p>}

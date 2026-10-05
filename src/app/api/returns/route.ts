@@ -8,6 +8,15 @@ import { nextNumber } from "@/lib/services/numbering.service";
 import { createReturnSchema } from "@/lib/validations/return.schema";
 import { DECIMAL_MONEY, DECIMAL_QTY } from "@/lib/services/cart.service";
 
+const RETURN_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+function ensureWithinReturnWindow(sale: { completedAt: Date | null; createdAt: Date }) {
+  const saleCompletedAt = sale.completedAt ?? sale.createdAt;
+  if (Date.now() - saleCompletedAt.getTime() > RETURN_WINDOW_MS) {
+    throw ApiError.badRequest("Products can only be returned within 24 hours of purchase");
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const session = await authorize(PERMISSIONS.RETURNS_CREATE, { planFeature: "returns" });
@@ -27,6 +36,7 @@ export async function GET(request: NextRequest) {
       },
     });
     if (!sale) throw ApiError.notFound("Completed sale");
+    ensureWithinReturnWindow(sale);
 
     return ok({
       id: sale.id,
@@ -83,6 +93,7 @@ export async function POST(request: NextRequest) {
       },
     });
     if (!sale) throw ApiError.notFound("Completed sale");
+    ensureWithinReturnWindow(sale);
     if (sale.items.length !== itemIds.length) throw ApiError.badRequest("Some return items do not belong to this sale");
 
     const itemMap = new Map(sale.items.map((item) => [item.id, item]));

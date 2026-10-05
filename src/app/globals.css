@@ -155,6 +155,88 @@
   .no-print {
     display: none !important;
   }
+
+  .report-print-document {
+    display: none;
+  }
+
+  body:has(.report-print-document) * {
+    visibility: hidden !important;
+  }
+
+  body:has(.report-print-document) .report-print-document,
+  body:has(.report-print-document) .report-print-document * {
+    visibility: visible !important;
+  }
+
+  body:has(.report-print-document) .report-print-document {
+    position: fixed;
+    inset: 0;
+    display: block !important;
+    overflow: visible;
+    width: 100%;
+    padding: 12mm;
+    background: #fff;
+    color: #111;
+    font-family: sans-serif;
+    font-size: 10pt;
+  }
+
+  .report-print-header {
+    margin-bottom: 8mm;
+    border-bottom: 2px solid #198754;
+    padding-bottom: 4mm;
+  }
+
+  .report-print-header h1 {
+    font-size: 20pt;
+    font-weight: 700;
+  }
+
+  .report-print-header p {
+    margin-top: 2mm;
+    color: #444;
+  }
+
+  .report-print-document h2 {
+    margin: 6mm 0 2mm;
+    font-size: 12pt;
+    font-weight: 700;
+  }
+
+  .report-print-table {
+    width: 100%;
+    border-collapse: collapse;
+    page-break-inside: avoid;
+  }
+
+  .report-print-table th,
+  .report-print-table td {
+    border: 1px solid #c8c8c8;
+    padding: 2.5mm 3mm;
+    text-align: left;
+  }
+
+  .report-print-table th {
+    background: #f0f3f1;
+    font-weight: 700;
+  }
+
+  .report-metrics-table td:last-child {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .report-metrics-table tbody tr:nth-child(even) {
+    background: #f8f9f8;
+  }
+
+  .report-print-document footer {
+    margin-top: 8mm;
+    color: #555;
+    font-size: 8pt;
+    text-align: right;
+  }
 }
 
 @supports selector(body:has(.print-sheet)) {

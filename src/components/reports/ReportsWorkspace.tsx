@@ -43,6 +43,17 @@ export function ReportsWorkspace({ initialData, canViewAll, currentUserId }: { i
 
   const summary = data?.summary;
   const title = period === "daily" ? "Daily report" : period === "weekly" ? "Weekly report" : period === "monthly" ? "Monthly report" : "Yearly report";
+  const cashierLabel = !canViewAll
+    ? data?.cashiers.find((cashier) => cashier.id === currentUserId)?.name ?? "My sales"
+    : cashierId
+      ? data?.cashiers.find((cashier) => cashier.id === cashierId)?.name ?? "Selected cashier"
+      : "All cashiers";
+  const productLabel = productId
+    ? data?.products.find((product) => product.id === productId)?.name ?? "Selected product"
+    : "All products";
+  const paymentMethodLabel = paymentMethod === "all"
+    ? "All methods"
+    : ({ CASH: "Cash", MOMO: "Mobile money", CARD_TERMINAL: "Ghana POS", CARD: "Card" }[paymentMethod] ?? paymentMethod);
 
   function exportCsv() {
     if (!data) return;
@@ -73,6 +84,7 @@ export function ReportsWorkspace({ initialData, canViewAll, currentUserId }: { i
 
   return (
     <div className="print-area">
+      <div className="report-screen-only">
       <PageHeader
         title="Reports"
         description="Sales, payment and profitability reporting for your store."
@@ -113,6 +125,39 @@ export function ReportsWorkspace({ initialData, canViewAll, currentUserId }: { i
       </div>
 
       <Card className="mt-4"><CardHeader><CardTitle>Top products</CardTitle></CardHeader><CardContent className="p-0"><div className="divide-y divide-[var(--border-base)]">{(data?.topProducts ?? []).map((product, index) => <div key={`${product.sku}-${index}`} className="flex items-center gap-3 px-4 py-3"><span className="flex size-7 items-center justify-center rounded-lg bg-muted text-xs tabular">{index + 1}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-fg">{product.name}</p><p className="text-xs text-fg-muted">{product.sku} · {product.quantity} sold</p></div><Money value={product.sales} className="font-semibold" /></div>)}</div></CardContent></Card>
+      </div>
+
+      {data && (
+        <section className="report-print-document" aria-label="Printable sales report">
+          <header className="report-print-header">
+            <h1>Sales Report</h1>
+            <p>{title}</p>
+          </header>
+
+          <h2>Report details</h2>
+          <table className="report-print-table">
+            <tbody>
+              <tr><th>Report period</th><td>{title}</td><th>From date</th><td>{data.range.from}</td></tr>
+              <tr><th>To date</th><td>{data.range.to}</td><th>Cashier</th><td>{cashierLabel}</td></tr>
+              <tr><th>Product</th><td>{productLabel}</td><th>Payment method</th><td>{paymentMethodLabel}</td></tr>
+            </tbody>
+          </table>
+
+          <h2>Performance summary</h2>
+          <table className="report-print-table report-metrics-table">
+            <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+            <tbody>
+              <tr><td>Total sales</td><td><Money value={summary?.totalSales ?? 0} /></td></tr>
+              <tr><td>Transactions during selected period</td><td>{summary?.transactions ?? 0}</td></tr>
+              <tr><td>Products sold (units)</td><td>{summary?.productsSold ?? 0}</td></tr>
+              <tr><td>Refunds</td><td><Money value={summary?.refunds ?? 0} /></td></tr>
+              <tr><td>Goods sold (cost of goods sold)</td><td><Money value={summary?.costOfGoods ?? 0} /></td></tr>
+              <tr><td>Profit (gross profit)</td><td><Money value={summary?.grossProfit ?? 0} /></td></tr>
+            </tbody>
+          </table>
+          <footer>Generated {new Intl.DateTimeFormat("en-GH", { dateStyle: "medium", timeStyle: "short" }).format(new Date())}</footer>
+        </section>
+      )}
     </div>
   );
 }

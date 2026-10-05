@@ -30,7 +30,6 @@ async function loadSales(fromQuery?: string, toQuery?: string) {
   if (user.isEmployee) redirect("/forbidden");
   const canViewAll = user.permissions.includes(PERMISSIONS.SALES_VIEW_ALL);
   const range = parseDateRange(fromQuery ?? "", toQuery ?? "");
-
   if (!user.storeId) return { sales: [], staff: [], canViewAll, range };
 
   const [sales, staff] = await Promise.all([

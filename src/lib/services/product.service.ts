@@ -90,6 +90,46 @@ export async function searchProducts(
   return rows.map((row) => toPosProduct(row, defaultTaxRate ? Number(defaultTaxRate.rate) : 0));
 }
 
+export async function searchCatalogueProducts(
+  storeId: string,
+  options: { q?: string; categoryId?: string; page: number; pageSize: number },
+) {
+  const term = options.q?.trim();
+  const where: Prisma.ProductWhereInput = {
+    storeId,
+    isActive: true,
+    deletedAt: null,
+    ...(options.categoryId ? { categoryId: options.categoryId } : {}),
+    ...(term
+      ? {
+          OR: [
+            { name: { contains: term } },
+            { sku: { contains: term } },
+            { barcodes: { some: { code: { contains: term } } } },
+          ],
+        }
+      : {}),
+  };
+  const [total, defaultTaxRate] = await Promise.all([
+    prisma.product.count({ where }),
+    prisma.taxRate.findFirst({ where: { storeId, isDefault: true, isActive: true }, select: { rate: true } }),
+  ]);
+  const page = Math.min(options.page, Math.max(1, Math.ceil(total / options.pageSize)));
+  const rows = await prisma.product.findMany({
+    where,
+    select: { ...productSelect, inventoryLevels: { where: { storeId }, take: 1, select: { quantity: true } } },
+    orderBy: { name: "asc" },
+    skip: (page - 1) * options.pageSize,
+    take: options.pageSize,
+  });
+
+  return {
+    products: rows.map((row) => toPosProduct(row, defaultTaxRate ? Number(defaultTaxRate.rate) : 0)),
+    total,
+    page,
+  };
+}
+
 /** Exact-match lookup used by the barcode scanner; falls back to SKU. */
 export async function findProductByBarcode(storeId: string, code: string): Promise<PosProduct | null> {
   const trimmed = code.trim();

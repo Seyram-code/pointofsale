@@ -15,6 +15,8 @@ import { api, buildQuery } from "@/lib/api/client";
 import type { PosProduct } from "@/lib/services/product.service";
 import { ProductEditDialog } from "@/components/products/ProductEditDialog";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { Pagination } from "@/components/ui/Pagination";
+import type { PaginationMeta } from "@/lib/api/pagination";
 
 interface ProductCatalogueProps {
   initialProducts: PosProduct[];
@@ -32,8 +34,17 @@ interface ProductImportResult {
 
 export function ProductCatalogue({ initialProducts, categories, canEdit, canDelete, canImport }: ProductCatalogueProps) {
   const [products, setProducts] = useState(initialProducts);
+  const [pagination, setPagination] = useState<PaginationMeta>({
+    page: 1,
+    pageSize: 15,
+    total: initialProducts.length,
+    totalPages: Math.max(1, Math.ceil(initialProducts.length / 15)),
+    hasNext: initialProducts.length > 15,
+    hasPrev: false,
+  });
   const [query, setQuery] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [editingProduct, setEditingProduct] = useState<PosProduct | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<PosProduct | null>(null);
@@ -79,8 +90,7 @@ export function ProductCatalogue({ initialProducts, categories, canEdit, canDele
       const result = payload.data as ProductImportResult;
       setImportResult(result);
       try {
-        const refreshed = await api.get<PosProduct[]>(`/products/search${buildQuery({ q: query, categoryId, limit: 60 })}`);
-        setProducts(refreshed);
+        await loadProducts(page);
       } catch {
         setImportError("Products were imported, but the catalogue did not refresh. Reload the page to see them.");
       }
@@ -91,12 +101,21 @@ export function ProductCatalogue({ initialProducts, categories, canEdit, canDele
     }
   }
 
+  async function loadProducts(requestedPage: number) {
+    const response = await api.get<{ products: PosProduct[]; pagination: PaginationMeta }>(
+      `/products/catalogue${buildQuery({ q: query, categoryId, page: requestedPage, pageSize: 15 })}`,
+    );
+    setProducts(response.products);
+    setPagination(response.pagination);
+    setPage(response.pagination.page);
+  }
+
   async function deleteProduct() {
     if (!deletingProduct) return;
     setDeleting(true);
     try {
       await api.delete(`/products/${deletingProduct.id}`);
-      setProducts((current) => current.filter((product) => product.id !== deletingProduct.id));
+      await loadProducts(page);
       setDeletingProduct(null);
     } finally {
       setDeleting(false);
@@ -104,22 +123,21 @@ export function ProductCatalogue({ initialProducts, categories, canEdit, canDele
   }
 
   useEffect(() => {
-    if (!query && !categoryId) {
-      setProducts(initialProducts);
-      return;
-    }
-
     let cancelled = false;
     setLoading(true);
     api
-      .get<PosProduct[]>(`/products/search${buildQuery({ q: query, categoryId, limit: 60 })}`)
-      .then((data) => !cancelled && setProducts(data))
+      .get<{ products: PosProduct[]; pagination: PaginationMeta }>(`/products/catalogue${buildQuery({ q: query, categoryId, page, pageSize: 15 })}`)
+      .then((response) => {
+        if (cancelled) return;
+        setProducts(response.products);
+        setPagination(response.pagination);
+      })
       .finally(() => !cancelled && setLoading(false));
 
     return () => {
       cancelled = true;
     };
-  }, [query, categoryId, initialProducts]);
+  }, [query, categoryId, page]);
 
   const columns: DataTableColumn<PosProduct>[] = [
     {
@@ -201,11 +219,11 @@ export function ProductCatalogue({ initialProducts, categories, canEdit, canDele
         <CardHeader className="flex-col gap-3 sm:flex-row sm:items-center">
           <Tabs
             value={categoryId ?? "all"}
-            onChange={(value) => setCategoryId(value === "all" ? null : value)}
+            onChange={(value) => { setCategoryId(value === "all" ? null : value); setPage(1); }}
             items={[{ value: "all", label: "All products" }, ...categories.map((category) => ({ value: category.id, label: category.name, count: category.productCount }))]}
             className="w-full overflow-x-auto sm:w-auto"
           />
-          <SearchInput placeholder="Search name, SKU or barcode" onSearch={setQuery} className="w-full sm:ml-auto sm:w-72" />
+          <SearchInput placeholder="Search name, SKU or barcode" onSearch={(value) => { setQuery(value); setPage(1); }} className="w-full sm:ml-auto sm:w-72" />
         </CardHeader>
         <CardContent className="p-0">
           <DataTable
@@ -226,6 +244,7 @@ export function ProductCatalogue({ initialProducts, categories, canEdit, canDele
               </div>
             )}
           />
+          {!loading && <Pagination meta={pagination} onPageChange={setPage} />}
         </CardContent>
       </Card>
       <ProductEditDialog product={editingProduct} open={Boolean(editingProduct)} onClose={() => setEditingProduct(null)} onSaved={replaceProduct} />

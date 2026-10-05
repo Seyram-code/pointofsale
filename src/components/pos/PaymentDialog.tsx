@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, Loader2, Printer } from "lucide-react";
+import QRCode from "qrcode";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -21,6 +22,51 @@ const MOMO_NETWORKS = [
   { value: "VODAFONE", label: "Telecel" },
   { value: "AIRTELTIGO", label: "AirtelTigo" },
 ] as const;
+
+function ReceiptBarcode({ receipt }: { receipt: NonNullable<CheckoutResponse["receipt"]> }) {
+  const [svgMarkup, setSvgMarkup] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    const formatAmount = (amount: number) =>
+      `${receipt.currency} ${new Intl.NumberFormat("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)}`;
+    const contents = [
+      `RECEIPT ${receipt.receiptNumber}`,
+      `Date: ${new Date(receipt.issuedAt).toLocaleString("en-GH")}`,
+      `Store: ${receipt.store.name}`,
+      `Branch: ${receipt.store.branchCode}`,
+      ...(receipt.store.addressLine ? [`Address: ${receipt.store.addressLine}${receipt.store.city ? `, ${receipt.store.city}` : ""}`] : []),
+      ...(receipt.store.phone ? [`Phone: ${receipt.store.phone}`] : []),
+      ...(receipt.store.tinNumber ? [`TIN: ${receipt.store.tinNumber}`] : []),
+      ...(receipt.store.vatNumber ? [`VAT: ${receipt.store.vatNumber}`] : []),
+      `Cashier: ${receipt.cashier}`,
+      ...(receipt.customer ? [`Customer: ${receipt.customer.name}`, ...(receipt.customer.phone ? [`Customer phone: ${receipt.customer.phone}`] : [])] : []),
+      "",
+      "ITEMS",
+      ...receipt.items.map((item) => `${item.quantity} x ${item.name} | ${formatAmount(item.unitPrice)} each | ${formatAmount(item.lineTotal)} total`),
+      "",
+      "PAYMENTS",
+      ...receipt.payments.map((payment) => `${payment.label}: ${formatAmount(payment.amount)}${payment.tenderedAmount !== null ? ` (tendered ${formatAmount(payment.tenderedAmount)})` : ""}`),
+      "",
+      "TOTALS",
+      `Subtotal: ${formatAmount(receipt.totals.subtotal)}`,
+      `Discount: ${formatAmount(receipt.totals.discount)}`,
+      `Tax: ${formatAmount(receipt.totals.tax)}`,
+      `TOTAL: ${formatAmount(receipt.totals.total)}`,
+      `Amount paid: ${formatAmount(receipt.totals.amountPaid)}`,
+      `Change: ${formatAmount(receipt.totals.changeDue)}`,
+    ].join("\n");
+
+    QRCode.toString(contents, { type: "svg", errorCorrectionLevel: "M", margin: 1, width: 180 })
+      .then((svg) => { if (!cancelled) setSvgMarkup(svg); })
+      .catch(() => { if (!cancelled) setSvgMarkup(""); });
+
+    return () => { cancelled = true; };
+  }, [receipt]);
+
+  if (!svgMarkup) return null;
+  return <div role="img" aria-label={`QR code with items and totals for receipt ${receipt.receiptNumber}`} dangerouslySetInnerHTML={{ __html: svgMarkup }} />;
+}
 
 export interface CheckoutPaymentInput {
   method: PaymentMethod;
@@ -47,10 +93,11 @@ export interface CheckoutResponse {
     issuedAt: string;
     store: { name: string; branchCode: string; addressLine: string | null; city: string | null; phone: string | null; tinNumber: string | null; vatNumber: string | null; footer: string | null };
     cashier: string;
+    customer: { name: string; phone: string | null } | null;
     currency: string;
-    items: Array<{ name: string; sku: string; quantity: number; unitPrice: number; lineTotal: number }>;
+    items: Array<{ name: string; sku: string; quantity: number; unitPrice: number; lineTotal: number; taxAmount: number }>;
     totals: { subtotal: number; discount: number; tax: number; total: number; amountPaid: number; changeDue: number };
-    payments: Array<{ label: string; amount: number; tenderedAmount: number | null }>;
+    payments: Array<{ method: string; label: string; amount: number; tenderedAmount: number | null; reference: string | null; cardLast4: string | null; momoPhone: string | null }>;
   } | null;
 }
 
@@ -329,6 +376,9 @@ export function PaymentDialog({
                 <span className="text-right font-medium text-fg">{receipt.payments.map((payment) => payment.label).join(", ")}</span>
               </div>
               {receipt.store.footer && <p className="text-center text-xs text-fg-muted">{receipt.store.footer}</p>}
+              <div className="mt-3 flex justify-center">
+                <ReceiptBarcode receipt={receipt} />
+              </div>
               <p className="print-brand-footer mt-2 text-center text-xs text-fg-muted">POS by First Dest (0598925563)</p>
             </div>
           )}

@@ -167,6 +167,7 @@ export function ReturnsWorkspace({ returns, canCreate, canApprove }: ReturnsWork
                   <Input label="Receipt number" value={receiptNumber} onChange={(event) => setReceiptNumber(event.target.value)} placeholder="e.g. RCP-202609-00014" required containerClassName="sm:max-w-sm" />
                   <Button type="button" variant="outline" loading={busy} onClick={() => void findSale()}>Find sale</Button>
                 </div>
+                <p className="text-xs text-fg-muted">Products can only be returned within 24 hours of purchase.</p>
                 {lookup && (
                   <div className="space-y-4 rounded-lg border border-line bg-muted p-3">
                     <div className="flex flex-wrap items-start justify-between gap-2 border-b border-line pb-3">
