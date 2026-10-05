@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createStaffAccessCode, getStoreAccessCodePrefix, hashStaffAccessCode } from "@/lib/auth/staff-access-code";
+import { staffAccessCodeLoginSchema } from "@/lib/validations/auth.schema";
 
 test("staff access codes use the store prefix and a three-digit suffix", () => {
   const first = createStaffAccessCode("The Rose Market");
@@ -18,4 +19,12 @@ test("short shop names still produce a three-character prefix", () => {
   assert.equal(getStoreAccessCodePrefix("Main Branch"), "MAB");
   assert.equal(getStoreAccessCodePrefix("Rose Market"), "ROM");
   assert.equal(getStoreAccessCodePrefix("X"), "XXX");
+});
+
+test("staff login accepts generated access codes with digits in the store prefix", () => {
+  const { accessCode } = createStaffAccessCode("Shop 9 Express");
+
+  assert.match(accessCode, /^S9E\d{3}$/);
+  assert.equal(staffAccessCodeLoginSchema.safeParse({ mode: "staff", accessCode }).success, true);
+  assert.equal(staffAccessCodeLoginSchema.safeParse({ mode: "staff", accessCode: "S9E419" }).success, true);
 });

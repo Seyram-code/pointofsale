@@ -10,7 +10,7 @@ export type LoginInput = z.infer<typeof loginSchema>;
 
 export const staffAccessCodeLoginSchema = z.object({
   mode: z.literal("staff"),
-  accessCode: z.string().trim().toUpperCase().regex(/^[A-Z]{3}\d{3}$/, "Enter a valid six-character staff access code"),
+  accessCode: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{3}\d{3}$/, "Enter a valid six-character staff access code"),
   rememberDevice: z.boolean().optional().default(false),
 });
 
