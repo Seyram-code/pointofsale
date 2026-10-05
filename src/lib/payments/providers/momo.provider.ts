@@ -2,6 +2,7 @@ import "server-only";
 import { missingKeys, momoConfig, paystackConfig } from "@/lib/payments/config";
 import { getAppUrl } from "@/lib/config/app-url";
 import { PaymentError, PaymentNotConfiguredError } from "@/lib/payments/errors";
+import { mapPaystackStatus } from "@/lib/payments/paystack-status";
 import { normalizeGhanaPhone } from "@/lib/utils/format";
 import { MOMO_NETWORK_PREFIXES } from "@/lib/config/constants";
 import { generateExternalReference } from "@/lib/services/id-registry";
@@ -157,7 +158,7 @@ export class PaystackMomoProvider implements PaymentProvider {
     const isSuccessful = status === "success" && isMobileMoney && isGhs;
 
     return {
-      state: isSuccessful ? "SUCCESSFUL" : status === "failed" || status === "success" ? "FAILED" : "PROCESSING",
+      state: isSuccessful ? "SUCCESSFUL" : status === "success" ? "FAILED" : mapPaystackStatus(status),
       externalRef,
       amount: Number(data.amount ?? 0) / 100,
       failureReason: status === "success" && !isSuccessful ? "Verified transaction was not GHS mobile money" : undefined,

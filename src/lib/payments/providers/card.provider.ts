@@ -2,6 +2,7 @@ import "server-only";
 import { cardConfig, missingKeys } from "@/lib/payments/config";
 import { getAppUrl } from "@/lib/config/app-url";
 import { PaymentNotConfiguredError } from "@/lib/payments/errors";
+import { mapPaystackStatus } from "@/lib/payments/paystack-status";
 import { generateAuthorizationCode, generateExternalReference } from "@/lib/services/id-registry";
 import type { PaymentProvider, PaymentRequest, PaymentResult, WebhookEvent } from "@/lib/payments/types";
 
@@ -124,7 +125,7 @@ export class LiveCardProvider implements PaymentProvider {
     const authorization = (data.authorization ?? {}) as Record<string, unknown>;
 
     return {
-      state: status === "success" ? "SUCCESSFUL" : status === "failed" ? "FAILED" : "PROCESSING",
+      state: mapPaystackStatus(status),
       externalRef,
       amount: Number(data.amount ?? 0) / 100,
       cardScheme: authorization.brand ? String(authorization.brand).toUpperCase() : undefined,
