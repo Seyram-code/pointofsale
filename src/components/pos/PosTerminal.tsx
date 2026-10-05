@@ -367,8 +367,9 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockCardD
     setCheckoutOpen(false);
     setCartOpen(false);
     void loadProducts();
+    if (returnSaleId) router.replace("/pos");
     searchRef.current?.focus();
-  }, [cart, loadProducts]);
+  }, [cart, loadProducts, returnSaleId, router]);
 
   const finishPaymentReturn = useCallback(() => {
     router.replace("/pos");
@@ -376,8 +377,7 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockCardD
 
   const handlePaymentCompleted = useCallback(() => {
     void loadProducts();
-    if (returnSaleId) router.replace("/pos");
-  }, [loadProducts, returnSaleId, router]);
+  }, [loadProducts]);
 
   const restoreFailedOrder = useCallback(async (items: Array<{ productId: string; sku: string; quantity: number }>) => {
     const productsForOrder = await Promise.all(items.map(async (item) => {
