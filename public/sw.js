@@ -1,8 +1,19 @@
-const CACHE_NAME = "mypos-pwa-v1";
+const CACHE_NAME = "mypos-pwa-v3";
 const OFFLINE_URL = "/offline";
+const APP_SHELL = [
+  "/",
+  "/offline",
+  "/manifest.webmanifest",
+  "/icons/vidypos-cart.png",
+];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.add(OFFLINE_URL)));
+  event.waitUntil(
+    caches
+      .open(CACHE_NAME)
+      .then((cache) => cache.addAll(APP_SHELL))
+      .catch(() => undefined),
+  );
   self.skipWaiting();
 });
 
@@ -14,9 +25,39 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  if (event.request.mode !== "navigate") return;
+  const { request } = event;
+
+  if (request.method !== "GET") return;
+
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin || url.pathname.startsWith("/api/") || url.pathname.startsWith("/_next/")) return;
+
+  if (request.mode === "navigate") {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          return response;
+        })
+        .catch(async () => {
+          const cached = await caches.match(request);
+          if (cached) return cached;
+          return caches.match(OFFLINE_URL);
+        }),
+    );
+    return;
+  }
 
   event.respondWith(
-    fetch(event.request).catch(() => caches.match(OFFLINE_URL)),
+    caches.match(request).then((cached) => {
+      if (cached) return cached;
+
+      return fetch(request).then((response) => {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+        return response;
+      }).catch(() => caches.match(OFFLINE_URL));
+    }),
   );
 });

@@ -86,6 +86,7 @@ export class LiveCardProvider implements PaymentProvider {
         callback_url: request.callbackUrl ?? `${getAppUrl()}/pos${request.saleId ? `?payment_sale=${encodeURIComponent(request.saleId)}` : ""}`,
         metadata: { sale_id: request.saleId, store_id: request.storeId, ...request.metadata },
       }),
+      signal: AbortSignal.timeout(20_000),
     });
 
     const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;

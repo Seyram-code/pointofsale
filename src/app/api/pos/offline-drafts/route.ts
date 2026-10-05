@@ -4,6 +4,7 @@ import { authorize } from "@/lib/auth/guard";
 import { PERMISSIONS } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/db/prisma";
 import { handleApiError, ok, created } from "@/lib/api/response";
+import { createOfflineDraftSale, processOfflineDraftSale } from "@/lib/services/offline-pos.service";
 
 const draftSchema = z.object({
   payload: z.object({
@@ -44,13 +45,13 @@ export async function POST(request: NextRequest) {
     if (!session.user.storeId) throw new Error("Store is required");
 
     const input = draftSchema.parse(await request.json());
-    const draft = await prisma.offlineSaleDraft.create({
-      data: {
-        storeId: session.user.storeId,
-        cashierId: session.user.id,
-        payload: input.payload,
-      },
-    });
+    const draft = await createOfflineDraftSale(session.user.storeId, session.user.id, input.payload);
+
+    try {
+      await processOfflineDraftSale(session.user.storeId, session.user.id, { ...input.payload, id: draft.id });
+    } catch {
+      // Keep the draft record for retry; failures here do not erase the saved offline entry.
+    }
 
     return created(draft);
   } catch (error) {

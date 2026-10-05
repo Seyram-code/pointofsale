@@ -14,8 +14,9 @@ export class ApiClientError extends Error {
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const timeoutMs = path === "/payments/checkout" ? 120_000 : 8000;
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), 8000);
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await withRequestTimeout(
@@ -28,7 +29,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
         credentials: "same-origin",
         signal: controller.signal,
       }),
-      8000,
+      timeoutMs,
       "The server took too long to respond. Please try again.",
     );
 
@@ -36,6 +37,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
     if (!response.ok || !payload || payload.success === false) {
       const error = payload && payload.success === false ? payload.error : null;
+      if (response.status === 401 && path !== "/auth/login" && window.location.pathname !== "/login") {
+        const next = `${window.location.pathname}${window.location.search}`;
+        window.location.replace(`/login?next=${encodeURIComponent(next)}`);
+      }
       throw new ApiClientError(
         error?.code ?? "INTERNAL_ERROR",
         error?.message ?? "Request failed",

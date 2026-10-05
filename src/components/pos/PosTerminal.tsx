@@ -114,18 +114,28 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockCardD
   const [offlineDraftCount, setOfflineDraftCount] = useState(0);
 
   const readOfflineDrafts = useCallback((): OfflineDraftPayload[] => {
+    if (typeof window === "undefined") return [];
+
     try {
       const stored = window.localStorage.getItem(OFFLINE_DRAFTS_KEY);
-      return stored ? JSON.parse(stored) as OfflineDraftPayload[] : [];
+      if (!stored) return [];
+      const parsed = JSON.parse(stored);
+      return Array.isArray(parsed) ? (parsed as OfflineDraftPayload[]) : [];
     } catch {
       return [];
     }
   }, []);
 
   const writeOfflineDrafts = useCallback((drafts: OfflineDraftPayload[]) => {
-    window.localStorage.setItem(OFFLINE_DRAFTS_KEY, JSON.stringify(drafts));
-    setOfflineDraftCount(drafts.length);
-  }, []);
+    if (typeof window === "undefined") return;
+
+    try {
+      window.localStorage.setItem(OFFLINE_DRAFTS_KEY, JSON.stringify(drafts));
+      setOfflineDraftCount(drafts.length);
+    } catch {
+      toast.error("Storage limit reached", "Offline drafts could not be saved on this device.");
+    }
+  }, [toast]);
 
   const saveOfflineDraft = useCallback(() => {
     if (!offlineEnabled) {
@@ -160,6 +170,17 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockCardD
     }
     writeOfflineDrafts(remaining);
   }, [offlineEnabled, readOfflineDrafts, writeOfflineDrafts]);
+
+  const handleConnectionStatusAction = useCallback(() => {
+    if (!offlineEnabled) return;
+    if (!online) {
+      saveOfflineDraft();
+      return;
+    }
+    if (offlineDraftCount > 0) {
+      void syncOfflineDrafts();
+    }
+  }, [offlineDraftCount, offlineEnabled, online, saveOfflineDraft, syncOfflineDrafts]);
 
   useEffect(() => {
     setOnline(navigator.onLine);
@@ -345,8 +366,9 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockCardD
     cart.clear();
     setCheckoutOpen(false);
     setCartOpen(false);
+    void loadProducts();
     searchRef.current?.focus();
-  }, [cart]);
+  }, [cart, loadProducts]);
 
   const finishPaymentReturn = useCallback(() => {
     router.replace("/pos");
@@ -452,11 +474,26 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockCardD
           </button>
         </div>
         <div className="flex items-center gap-2 text-xs text-fg-muted">
-          <CloudOff className={cn("size-3.5", online ? "text-fg-muted" : "text-warning")} />
-          <span>{online ? "Online" : offlineEnabled ? "Offline mode" : "Offline unavailable"}{offlineEnabled && offlineDraftCount > 0 ? ` · ${offlineDraftCount} pending` : ""}</span>
+          <button
+            type="button"
+            onClick={handleConnectionStatusAction}
+            className="flex items-center gap-2 rounded-md px-1.5 py-1 text-left transition hover:bg-muted"
+            aria-label={online ? "Sync pending offline drafts" : "Save current cart as an offline draft"}
+          >
+            <CloudOff className={cn("size-3.5", online ? "text-fg-muted" : "text-warning")} />
+            <span>
+              {online ? "Online" : offlineEnabled ? "Offline mode" : "Offline unavailable"}
+              {offlineEnabled && offlineDraftCount > 0 ? ` · ${offlineDraftCount} pending` : ""}
+            </span>
+          </button>
           {offlineEnabled && cart.lines.length > 0 && !online && (
             <button type="button" onClick={saveOfflineDraft} className="ml-auto font-medium text-brand-600 hover:underline">
               Save draft
+            </button>
+          )}
+          {offlineEnabled && online && offlineDraftCount > 0 && (
+            <button type="button" onClick={() => void syncOfflineDrafts()} className="ml-auto font-medium text-brand-600 hover:underline">
+              Sync now
             </button>
           )}
         </div>

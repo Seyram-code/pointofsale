@@ -118,6 +118,7 @@ export class PaystackMomoProvider implements PaymentProvider {
           ...request.metadata,
         },
       }),
+      signal: AbortSignal.timeout(20_000),
     });
 
     const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;

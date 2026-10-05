@@ -4,7 +4,7 @@
   "private": true,
   "description": "Point of Sale and retail management system for Ghanaian shops and pharmacies",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --port 3002",
     "build": "prisma generate && node scripts/deploy-migrations.mjs && next build",
     "postinstall": "prisma generate",
     "prestart": "prisma generate",
