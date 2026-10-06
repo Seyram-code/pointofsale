@@ -14,6 +14,8 @@ const PUBLIC_PATHS = [
   "/terms",
   "/forbidden",
   "/offline",
+  "/robots.txt",
+  "/sitemap.xml",
   "/sw.js",
   "/api/auth/login",
   "/api/auth/register",

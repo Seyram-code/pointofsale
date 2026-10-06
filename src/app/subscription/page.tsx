@@ -13,7 +13,7 @@ import { PlatformFeatureChecklist } from "@/components/platform/PlatformFeatureC
 import { getPlatformPlanPricing } from "@/lib/services/plan-pricing.service";
 import { getSubscriptionPlan, normalizePlanKey, SELECTABLE_PLAN_KEYS, type SubscriptionPlan } from "@/lib/config/subscription-plans";
 
-export const metadata: Metadata = { title: "Subscription" };
+export const metadata: Metadata = { title: "Subscription", robots: { index: false, follow: false, noarchive: true } };
 export const dynamic = "force-dynamic";
 
 export default async function SubscriptionPage() {

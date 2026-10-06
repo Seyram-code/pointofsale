@@ -20,6 +20,13 @@ import { StoreLogo } from "@/components/brand/StoreLogo";
 import { publicEnv } from "@/lib/config/env";
 import { getPlatformPlanPricing } from "@/lib/services/plan-pricing.service";
 import { SUBSCRIPTION_PLANS, type SubscriptionPlan } from "@/lib/config/subscription-plans";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "VidyPOS — Point of Sale for Ghanaian Retail",
+  description: "Run checkout, inventory, staff access, customers, and sales reporting in one point-of-sale system built for Ghanaian shops and pharmacies.",
+  alternates: { canonical: "/" },
+};
 
 const NAV_LINKS = [
   { href: "#features", label: "Why VidyPOS" },

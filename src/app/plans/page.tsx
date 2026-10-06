@@ -5,7 +5,7 @@ import { publicEnv } from "@/lib/config/env";
 import { SUBSCRIPTION_PLANS } from "@/lib/config/subscription-plans";
 import { StoreLogo } from "@/components/brand/StoreLogo";
 
-export const metadata: Metadata = { title: "Plans" };
+export const metadata: Metadata = { title: "Plans", alternates: { canonical: "/plans" } };
 
 const planOrder = ["TRIAL", "STARTER", "PREMIUM", "ENTERPRISE"] as const;
 const featuredPlan = "PREMIUM";

@@ -5,6 +5,7 @@ import { publicEnv } from "@/lib/config/env";
 export const metadata: Metadata = {
   title: "Terms and Conditions",
   description: `Terms for using ${publicEnv.appName}.`,
+  alternates: { canonical: "/terms" },
 };
 
 export default function TermsPage() {

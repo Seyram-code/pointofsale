@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { ShieldAlert } from "lucide-react";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Access denied", robots: { index: false, follow: false, noarchive: true } };
 
 export default function ForbiddenPage() {
   return (

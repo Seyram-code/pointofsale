@@ -5,6 +5,11 @@ import { BarChart3, ScanBarcode, Smartphone } from "lucide-react";
 import { getSession } from "@/lib/auth/session";
 import { StoreLogo } from "@/components/brand/StoreLogo";
 import { publicEnv } from "@/lib/config/env";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false, noarchive: true },
+};
 
 const HIGHLIGHTS = [
   { icon: ScanBarcode, title: "Scan and sell fast", body: "Barcode-ready checkout built for busy tills." },

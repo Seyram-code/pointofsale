@@ -4,6 +4,11 @@ import { AppShell } from "@/components/layout/AppShell";
 import { SessionExpiryGuard } from "@/components/layout/SessionExpiryGuard";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false, noarchive: true },
+};
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();

@@ -8,6 +8,7 @@ import { publicEnv } from "@/lib/config/env";
 export const metadata: Metadata = {
   title: "Reset your password",
   description: `Choose a new password for your ${publicEnv.appName} account.`,
+  robots: { index: false, follow: false, noarchive: true },
 };
 
 export default function ResetPasswordPage() {

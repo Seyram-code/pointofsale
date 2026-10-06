@@ -5,12 +5,30 @@ import { PwaRegistration } from "@/components/providers/PwaRegistration";
 import { ToastProvider } from "@/components/ui/Toast";
 import { publicEnv } from "@/lib/config/env";
 
+const siteUrl = process.env.NEXT_PUBLIC_APP_URL
+  ?? (process.env.NODE_ENV === "production" ? "https://vidyposgh.com" : "http://localhost:3000");
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: {
     default: `${publicEnv.appName} — Point of Sale`,
     template: `%s · ${publicEnv.appName}`,
   },
   description: "Point of sale and retail management for shops and pharmacies in Ghana.",
+  robots: { index: true, follow: true },
+  openGraph: {
+    type: "website",
+    siteName: publicEnv.appName,
+    title: "VidyPOS — Point of Sale for Ghanaian Retail",
+    description: "Run checkout, inventory, staff access, customers, and sales reporting in one point-of-sale system built for Ghanaian shops and pharmacies.",
+    images: [{ url: "/screenshots/dashboard.webp", width: 1440, height: 980, alt: "VidyPOS retail management dashboard" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "VidyPOS — Point of Sale for Ghanaian Retail",
+    description: "Point of sale, inventory and reporting for Ghanaian retail businesses.",
+    images: ["/screenshots/dashboard.webp"],
+  },
   applicationName: publicEnv.appName,
   manifest: "/manifest.webmanifest",
   icons: {

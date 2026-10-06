@@ -5,6 +5,7 @@ import { publicEnv } from "@/lib/config/env";
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description: `How ${publicEnv.appName} collects, uses and protects information.` ,
+  alternates: { canonical: "/privacy-policy" },
 };
 
 export default function PrivacyPolicyPage() {
