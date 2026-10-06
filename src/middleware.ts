@@ -16,6 +16,7 @@ const PUBLIC_PATHS = [
   "/offline",
   "/robots.txt",
   "/sitemap.xml",
+  "/google5768b6cf2a0bb144.html",
   "/sw.js",
   "/api/auth/login",
   "/api/auth/register",
