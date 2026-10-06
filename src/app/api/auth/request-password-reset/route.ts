@@ -1,5 +1,6 @@
 import { createPasswordResetToken, sendPasswordResetEmail } from "@/lib/services/password-reset.service";
 import { prisma } from "@/lib/db/prisma";
+import { getAppUrl } from "@/lib/config/app-url";
 import { handleApiError, ok } from "@/lib/api/response";
 import { z } from "zod";
 
@@ -36,7 +37,7 @@ export async function POST(request: Request) {
 
       if (updated.count === 1) {
         try {
-          await sendPasswordResetEmail({ email: user.email, fullName: user.fullName, token: reset.token, appUrl: new URL(request.url).origin });
+          await sendPasswordResetEmail({ email: user.email, fullName: user.fullName, token: reset.token, appUrl: getAppUrl() });
         } catch (error) {
           console.error("[password-reset] failed to send reset email", error);
           await prisma.user.updateMany({

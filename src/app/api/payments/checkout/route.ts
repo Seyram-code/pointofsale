@@ -7,6 +7,7 @@ import { checkoutSchema } from "@/lib/validations/sale.schema";
 import { recordAudit, requestContext } from "@/lib/services/audit.service";
 import { isPaystackEnabled } from "@/lib/services/payment-settings.service";
 import { isPaystackMethod } from "@/lib/payments/config";
+import { getAppUrl } from "@/lib/config/app-url";
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
       storeId: session.user.storeId,
       cashierId: session.user.id,
       allowPriceOverride: session.user.permissions.includes(PERMISSIONS.POS_PRICE_OVERRIDE),
-      appUrl: new URL(request.url).origin,
+      appUrl: getAppUrl(),
     });
 
     await recordAudit({
