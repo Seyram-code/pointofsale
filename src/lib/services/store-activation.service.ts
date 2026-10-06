@@ -3,7 +3,6 @@ import { createHash, randomBytes, randomInt } from "node:crypto";
 import nodemailer from "nodemailer";
 
 const ACTIVATION_CODE_TTL_MS = 30 * 60 * 1000;
-const PRODUCTION_APP_URL = "https://pos.firstdestltd.com";
 
 function usableAppUrl(value: string | undefined, production: boolean): string | null {
   if (!value) return null;
@@ -66,11 +65,10 @@ export async function sendStoreActivationEmail(input: {
     auth: { user, pass: password },
   });
   const production = process.env.NODE_ENV === "production";
-  const appUrl = production
-    ? usableAppUrl(process.env.NEXT_PUBLIC_APP_URL, true) ?? PRODUCTION_APP_URL
-    : usableAppUrl(process.env.NEXT_PUBLIC_APP_URL, false)
-      ?? usableAppUrl(input.appUrl, false)
-      ?? "http://localhost:3000";
+  const appUrl = usableAppUrl(input.appUrl, production)
+    ?? usableAppUrl(process.env.NEXT_PUBLIC_APP_URL, production)
+    ?? (production ? null : "http://localhost:3000");
+  if (!appUrl) throw new Error("A valid HTTPS application URL is required to send activation links");
   const activationUrl = `${appUrl}/activate?email=${encodeURIComponent(input.email)}&token=${encodeURIComponent(input.linkToken)}`;
   const safeBusinessName = input.businessName.replace(/[<>&"']/g, (character) => ({
     "<": "&lt;",

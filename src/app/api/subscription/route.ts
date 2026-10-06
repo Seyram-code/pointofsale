@@ -11,7 +11,6 @@ import { normalizePlanKey } from "@/lib/config/plan-features";
 import { normalizeGhanaPhone } from "@/lib/utils/format";
 import { isPaystackEnabled } from "@/lib/services/payment-settings.service";
 import { isPaystackMethod } from "@/lib/payments/config";
-import { getAppUrl } from "@/lib/config/app-url";
 import { z } from "zod";
 
 export async function GET() {
@@ -129,7 +128,7 @@ export async function POST(request: Request) {
           description: `${selectedPlan.name} subscription`,
           storeId: session.user.storeId,
           cashierId: session.user.id,
-          callbackUrl: `${getAppUrl()}/subscription?reference=${encodeURIComponent(transactionReference)}&plan=${plan}&method=${paymentMethod}&months=${months}`,
+          callbackUrl: `${new URL(request.url).origin}/subscription?reference=${encodeURIComponent(transactionReference)}&plan=${plan}&method=${paymentMethod}&months=${months}`,
           metadata: { subscription_store_id: session.user.storeId, subscription_plan: plan, subscription_months: String(months), payment_method: paymentMethod },
           momo: paymentMethod === "MOMO" ? { network: momoNetwork as "MTN" | "VODAFONE" | "AIRTELTIGO", phone: normalizedPhone!, email: paymentEmail } : undefined,
           card: paymentMethod === "CARD" ? { email: paymentEmail } : undefined,

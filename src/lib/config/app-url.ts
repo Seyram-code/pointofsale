@@ -1,6 +1,5 @@
 import "server-only";
 
-const PRODUCTION_APP_URL = "https://pos.firstdestltd.com";
 const LOCAL_APP_URL = "http://localhost:3000";
 
 function isInternalHost(hostname: string) {
@@ -22,5 +21,8 @@ export function getAppUrl() {
     }
   }
 
-  return process.env.NODE_ENV === "production" ? PRODUCTION_APP_URL : LOCAL_APP_URL;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("NEXT_PUBLIC_APP_URL must be set to the deployed HTTPS domain");
+  }
+  return LOCAL_APP_URL;
 }

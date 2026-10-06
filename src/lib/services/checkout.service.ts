@@ -87,7 +87,7 @@ export async function checkout(input: CheckoutInput, context: SaleContext & { ap
     const provider = getPaymentProvider(row.input.method);
     try {
       const paymentRequest = toPaymentRequest(row.input, context, receiptNumber, saleId, row.id);
-      if (process.env.NODE_ENV !== "production" && context.appUrl) {
+      if (context.appUrl) {
         paymentRequest.callbackUrl = `${context.appUrl}/pos?payment_sale=${encodeURIComponent(saleId)}`;
       }
       const result = await provider.initiate(paymentRequest);
