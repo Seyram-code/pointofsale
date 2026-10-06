@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { AlertCircle, KeyRound, LogIn, User } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -14,9 +14,8 @@ import { loginSchema, staffAccessCodeLoginSchema } from "@/lib/validations/auth.
 const REMEMBER_KEY = "mypos.lastIdentifier";
 
 export function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const nextPath = searchParams.get("next") ?? "/dashboard";
+  const requestedNextPath = searchParams.get("next");
   const expiredSession = searchParams.get("expired") === "1";
 
   const [identifier, setIdentifier] = useState("");
@@ -58,13 +57,23 @@ export function LoginForm() {
 
     setLoading(true);
     try {
-      await api.post("/auth/login", parsed.data);
+      const user = await api.post<{ role: string }>("/auth/login", parsed.data);
 
       if (mode === "password" && rememberDevice) window.localStorage.setItem(REMEMBER_KEY, identifier.trim());
       else window.localStorage.removeItem(REMEMBER_KEY);
 
-      router.replace(nextPath);
-      router.refresh();
+      const fallbackPath = user.role === "SUPER_ADMIN" ? "/platform" : "/dashboard";
+      let destination = fallbackPath;
+      if (requestedNextPath?.startsWith("/") && !requestedNextPath.startsWith("//")) {
+        const requestedUrl = new URL(requestedNextPath, window.location.origin);
+        if (requestedUrl.origin === window.location.origin) {
+          const requestedIsPlatform = requestedUrl.pathname === "/platform" || requestedUrl.pathname.startsWith("/platform/");
+          if (!requestedIsPlatform || user.role === "SUPER_ADMIN") {
+            destination = `${requestedUrl.pathname}${requestedUrl.search}${requestedUrl.hash}`;
+          }
+        }
+      }
+      window.location.replace(destination);
     } catch (error) {
       setFormError(
         error instanceof ApiClientError
