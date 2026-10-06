@@ -33,6 +33,7 @@ const NAV_LINKS = [
   { href: "#how-it-works", label: "How it works" },
   { href: "#pricing", label: "Pricing" },
   { href: "#faq", label: "FAQ" },
+  { href: "/contact", label: "Contact" },
 ];
 
 const SHOP_TYPES = ["Supermarkets", "Provision stores", "Pharmacies", "Restaurants", "Mini marts", "Wholesalers"];
@@ -113,13 +114,6 @@ export default async function HomePage() {
               className="hidden whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold text-slate-200 transition-colors hover:bg-white/5 lg:inline-flex"
             >
               Sign in
-            </Link>
-            <Link
-              href="/register"
-              className="inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-lg bg-brand-500 px-4 text-sm font-semibold text-white shadow-lg shadow-brand-600/25 transition-colors hover:bg-brand-400"
-            >
-              Start free trial
-              <ArrowRight className="size-4" />
             </Link>
             <details className="relative lg:hidden">
               <summary
@@ -542,6 +536,7 @@ export default async function HomePage() {
             </div>
           </div>
         </section>
+
       </main>
 
       <footer className="border-t border-white/10 bg-slate-900">
@@ -600,6 +595,11 @@ export default async function HomePage() {
                 <li>
                   <Link href="/terms" className="transition-colors hover:text-white">
                     Terms and Conditions
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/contact" className="transition-colors hover:text-white">
+                    Contact
                   </Link>
                 </li>
               </ul>
