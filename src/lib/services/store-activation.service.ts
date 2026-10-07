@@ -63,6 +63,9 @@ export async function sendStoreActivationEmail(input: {
     port,
     secure: process.env.SMTP_SECURE === "true",
     auth: { user, pass: password },
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 20_000,
   });
   const production = process.env.NODE_ENV === "production";
   const appUrl = usableAppUrl(input.appUrl, production)

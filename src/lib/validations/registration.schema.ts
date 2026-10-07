@@ -5,6 +5,7 @@ export const businessTypeSchema = z.enum([
   "PROVISION_STORE",
   "PHARMACY",
   "RESTAURANT",
+  "SALON_SPA",
   "MINI_MART",
   "WHOLESALE",
   "OTHER",

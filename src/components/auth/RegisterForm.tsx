@@ -24,6 +24,7 @@ const BUSINESS_TYPES = [
   { value: "PROVISION_STORE", label: "Provision Store" },
   { value: "PHARMACY", label: "Pharmacy" },
   { value: "RESTAURANT", label: "Restaurant" },
+  { value: "SALON_SPA", label: "Salon & Spa" },
   { value: "MINI_MART", label: "Mini Mart" },
   { value: "WHOLESALE", label: "Wholesale" },
   { value: "OTHER", label: "Other" },

@@ -1,4 +1,4 @@
-import type { NextRequest } from "next/server";
+import { after, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, handleApiError, ok } from "@/lib/api/response";
 import { hashPassword, checkPasswordStrength } from "@/lib/auth/password";
@@ -85,17 +85,19 @@ export async function POST(request: NextRequest) {
       });
     });
 
-    try {
-      await sendStoreActivationEmail({
-        email: ownerEmail,
-        businessName: input.businessName,
-        code: activation.code,
-        linkToken: activationLink.token,
-        appUrl: new URL(request.url).origin,
-      });
-    } catch (error) {
-      console.error("[activation] failed to send shop activation email", error);
-    }
+    after(async () => {
+      try {
+        await sendStoreActivationEmail({
+          email: ownerEmail,
+          businessName: input.businessName,
+          code: activation.code,
+          linkToken: activationLink.token,
+          appUrl: new URL(request.url).origin,
+        });
+      } catch (error) {
+        console.error("[activation] failed to send shop activation email", error);
+      }
+    });
     return ok({ fullName: owner.fullName, email: owner.email, storeId: owner.storeId, activationRequired: true }, undefined, 201);
   } catch (error) {
     return handleApiError(error);

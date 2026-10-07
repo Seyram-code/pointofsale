@@ -36,10 +36,9 @@ export function ReportsWorkspace({ initialData, canViewAll, currentUserId }: { i
   }, [categoryId, cashierId, from, paymentMethod, period, productId, to]);
 
   useEffect(() => {
-    if (period === "daily" && !from && !to && !cashierId && paymentMethod === "all" && !productId && !categoryId) return;
     const timer = setTimeout(() => void loadReport(), 250);
     return () => clearTimeout(timer);
-  }, [categoryId, cashierId, from, loadReport, paymentMethod, period, productId, to]);
+  }, [loadReport]);
 
   const summary = data?.summary;
   const title = period === "daily" ? "Daily report" : period === "weekly" ? "Weekly report" : period === "monthly" ? "Monthly report" : "Yearly report";
@@ -63,6 +62,8 @@ export function ReportsWorkspace({ initialData, canViewAll, currentUserId }: { i
       ["Total sales", data.summary.totalSales],
       ["Transactions", data.summary.transactions],
       ["Products sold", data.summary.productsSold],
+      ["Services sold", data.summary.servicesSold],
+      ["Service revenue", data.summary.serviceRevenue],
       ["Cash sales", data.summary.cashSales],
       ["MoMo sales", data.summary.momoSales],
       ["Ghana POS sales", data.summary.ghanaPosSales],
@@ -107,7 +108,9 @@ export function ReportsWorkspace({ initialData, canViewAll, currentUserId }: { i
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         <StatCard label="Total sales" value={<Money value={summary?.totalSales ?? 0} />} icon={<BarChart3 className="size-5" />} tone="brand" />
         <StatCard label="Transactions" value={String(summary?.transactions ?? 0)} hint="Completed sales" tone="accent" />
-        <StatCard label="Products sold" value={String(summary?.productsSold ?? 0)} hint="Units" tone="neutral" />
+        <StatCard label="Products sold" value={String(summary?.productsSold ?? 0)} hint="Inventory units" tone="neutral" />
+        {(summary?.servicesSold ?? 0) > 0 && <StatCard label="Services sold" value={String(summary?.servicesSold ?? 0)} hint="Service units" tone="accent" />}
+        {(summary?.serviceRevenue ?? 0) > 0 && <StatCard label="Service revenue" value={<Money value={summary?.serviceRevenue ?? 0} />} tone="brand" />}
         <StatCard label="Average transaction" value={<Money value={summary?.averageTransactionValue ?? 0} />} tone="success" />
         <StatCard label="Cash sales" value={<Money value={summary?.cashSales ?? 0} />} tone="success" />
         <StatCard label="MoMo sales" value={<Money value={summary?.momoSales ?? 0} />} tone="accent" />
@@ -124,7 +127,7 @@ export function ReportsWorkspace({ initialData, canViewAll, currentUserId }: { i
         <PaymentBreakdown summary={summary} />
       </div>
 
-      <Card className="mt-4"><CardHeader><CardTitle>Top products</CardTitle></CardHeader><CardContent className="p-0"><div className="divide-y divide-[var(--border-base)]">{(data?.topProducts ?? []).map((product, index) => <div key={`${product.sku}-${index}`} className="flex items-center gap-3 px-4 py-3"><span className="flex size-7 items-center justify-center rounded-lg bg-muted text-xs tabular">{index + 1}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-fg">{product.name}</p><p className="text-xs text-fg-muted">{product.sku} · {product.quantity} sold</p></div><Money value={product.sales} className="font-semibold" /></div>)}</div></CardContent></Card>
+      <Card className="mt-4"><CardHeader><CardTitle>Top items</CardTitle></CardHeader><CardContent className="p-0"><div className="divide-y divide-[var(--border-base)]">{(data?.topProducts ?? []).map((product, index) => <div key={`${product.sku}-${index}`} className="flex items-center gap-3 px-4 py-3"><span className="flex size-7 items-center justify-center rounded-lg bg-muted text-xs tabular">{index + 1}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-fg">{product.name}</p><p className="text-xs text-fg-muted">{product.sku} · {product.quantity} sold</p></div><Money value={product.sales} className="font-semibold text-fg" /></div>)}</div></CardContent></Card>
       </div>
 
       {data && (
@@ -135,7 +138,7 @@ export function ReportsWorkspace({ initialData, canViewAll, currentUserId }: { i
           </header>
 
           <h2>Report details</h2>
-          <table className="report-print-table">
+          <table className="report-print-table report-details-table">
             <tbody>
               <tr><th>Report period</th><td>{title}</td><th>From date</th><td>{data.range.from}</td></tr>
               <tr><th>To date</th><td>{data.range.to}</td><th>Cashier</th><td>{cashierLabel}</td></tr>
@@ -150,6 +153,8 @@ export function ReportsWorkspace({ initialData, canViewAll, currentUserId }: { i
               <tr><td>Total sales</td><td><Money value={summary?.totalSales ?? 0} /></td></tr>
               <tr><td>Transactions during selected period</td><td>{summary?.transactions ?? 0}</td></tr>
               <tr><td>Products sold (units)</td><td>{summary?.productsSold ?? 0}</td></tr>
+              <tr><td>Services sold (units)</td><td>{summary?.servicesSold ?? 0}</td></tr>
+              <tr><td>Service revenue</td><td><Money value={summary?.serviceRevenue ?? 0} /></td></tr>
               <tr><td>Refunds</td><td><Money value={summary?.refunds ?? 0} /></td></tr>
               <tr><td>Goods sold (cost of goods sold)</td><td><Money value={summary?.costOfGoods ?? 0} /></td></tr>
               <tr><td>Profit (gross profit)</td><td><Money value={summary?.grossProfit ?? 0} /></td></tr>

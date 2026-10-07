@@ -19,6 +19,8 @@ export interface ReportData {
     totalSales: number;
     transactions: number;
     productsSold: number;
+    servicesSold: number;
+    serviceRevenue: number;
     cashSales: number;
     momoSales: number;
     ghanaPosSales: number;
@@ -71,11 +73,11 @@ export async function getReportData(storeId: string, query: ReportQuery, scopedC
     include: {
       cashier: { select: { id: true, fullName: true } },
       payments: { where: { status: "SUCCESSFUL" }, select: { method: true, amount: true } },
-      items: { select: { productId: true, productName: true, sku: true, quantity: true, unitCost: true, taxAmount: true, lineTotal: true, refundedQty: true } },
+      items: { select: { productId: true, productName: true, sku: true, quantity: true, unitCost: true, taxAmount: true, lineTotal: true, refundedQty: true, product: { select: { type: true } } } },
     },
   });
 
-  const summary = { totalSales: 0, transactions: sales.length, productsSold: 0, cashSales: 0, momoSales: 0, ghanaPosSales: 0, cardSales: 0, discounts: 0, refunds: 0, costOfGoods: 0, grossProfit: 0, averageTransactionValue: 0 };
+  const summary = { totalSales: 0, transactions: sales.length, productsSold: 0, servicesSold: 0, serviceRevenue: 0, cashSales: 0, momoSales: 0, ghanaPosSales: 0, cardSales: 0, discounts: 0, refunds: 0, costOfGoods: 0, grossProfit: 0, averageTransactionValue: 0 };
   const productMap = new Map<string, { name: string; sku: string; quantity: number; sales: number }>();
   const pointMap = new Map<string, ReportPoint>();
   const cashierMap = new Map<string, string>();
@@ -101,9 +103,16 @@ export async function getReportData(storeId: string, query: ReportQuery, scopedC
     for (const item of sale.items) {
       const quantity = Math.max(n(item.quantity) - n(item.refundedQty), 0);
       const salesAmount = n(item.lineTotal);
-      summary.productsSold += quantity;
-      cost += n(item.unitCost) * quantity;
-      remainingTax += n(item.quantity) > 0 ? n(item.taxAmount) * (quantity / n(item.quantity)) : 0;
+      const isService = item.product.type === "SERVICE";
+      const remainingRatio = n(item.quantity) > 0 ? quantity / n(item.quantity) : 0;
+      if (isService) {
+        summary.servicesSold += quantity;
+        summary.serviceRevenue += salesAmount * remainingRatio;
+      } else {
+        summary.productsSold += quantity;
+        cost += n(item.unitCost) * quantity;
+      }
+      remainingTax += n(item.taxAmount) * remainingRatio;
       const existing = productMap.get(item.productId) ?? { name: item.productName, sku: item.sku, quantity: 0, sales: 0 };
       existing.quantity += quantity;
       existing.sales += salesAmount;

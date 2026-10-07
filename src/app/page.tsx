@@ -36,7 +36,7 @@ const NAV_LINKS = [
   { href: "/contact", label: "Contact" },
 ];
 
-const SHOP_TYPES = ["Supermarkets", "Provision stores", "Pharmacies", "Restaurants", "Mini marts", "Wholesalers"];
+const SHOP_TYPES = ["Supermarkets", "Provision stores", "Pharmacies", "Restaurants", "Salons & spas", "Mini marts", "Wholesalers"];
 
 const FEATURES = [
   { icon: ScanBarcode, title: "Instant checkout", body: "Scan products in seconds and complete cash, MoMo and card sales without leaving the till." },

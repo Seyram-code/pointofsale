@@ -14,7 +14,7 @@ export class ApiClientError extends Error {
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const timeoutMs = path === "/payments/checkout" ? 120_000 : path === "/contact" ? 30_000 : 8000;
+  const timeoutMs = path === "/payments/checkout" ? 120_000 : path === "/contact" || path === "/auth/register" ? 30_000 : 8000;
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
 

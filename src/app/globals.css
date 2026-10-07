@@ -151,6 +151,47 @@
   }
 }
 
+.report-print-document {
+  display: none;
+}
+
+.report-print-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.report-print-table th,
+.report-print-table td {
+  border: 1px solid var(--border-base);
+  padding: 0.65rem 0.75rem;
+  text-align: left;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+
+.report-details-table th {
+  width: 18%;
+}
+
+.report-details-table td {
+  width: 32%;
+}
+
+.report-print-table th {
+  background: var(--surface-muted);
+  font-weight: 700;
+}
+
+.report-metrics-table td:last-child {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.report-metrics-table tbody tr:nth-child(even) {
+  background: var(--surface-muted);
+}
+
 @media print {
   .no-print {
     display: none !important;
@@ -204,22 +245,19 @@
     font-weight: 700;
   }
 
-  .report-print-table {
-    width: 100%;
-    border-collapse: collapse;
-    page-break-inside: avoid;
+  .report-print-table th {
+    background: #f0f3f1;
+    font-weight: 700;
   }
 
   .report-print-table th,
   .report-print-table td {
-    border: 1px solid #c8c8c8;
+    border-color: #c8c8c8;
     padding: 2.5mm 3mm;
-    text-align: left;
   }
 
-  .report-print-table th {
-    background: #f0f3f1;
-    font-weight: 700;
+  .report-print-table {
+    page-break-inside: avoid;
   }
 
   .report-metrics-table td:last-child {

@@ -9,7 +9,13 @@ const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000;
 const WARNING_DURATION_MS = 30 * 1000;
 const ACTIVITY_EVENTS = ["pointerdown", "pointermove", "keydown", "click", "scroll", "touchstart", "wheel"] as const;
 
-export function SessionExpiryGuard() {
+export function SessionExpiryGuard({
+  expectedUserId,
+  expectedStoreId,
+}: {
+  expectedUserId: string;
+  expectedStoreId: string | null;
+}) {
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
   const [checkingStay, setCheckingStay] = useState(false);
   const stayLoggedInRef = useRef<() => void>(() => undefined);
@@ -34,6 +40,14 @@ export function SessionExpiryGuard() {
         if (response.status === 401) {
           const next = `${window.location.pathname}${window.location.search}`;
           window.location.replace(`/login?next=${encodeURIComponent(next)}`);
+          return;
+        }
+        if (response.ok) {
+          const payload = await response.json();
+          const currentUser = payload?.data as { id?: string; storeId?: string | null } | undefined;
+          if (currentUser?.id !== expectedUserId || currentUser?.storeId !== expectedStoreId) {
+            window.location.replace(window.location.href);
+          }
         }
       } catch {
       } finally {
@@ -139,7 +153,7 @@ export function SessionExpiryGuard() {
         window.removeEventListener(eventName, handleActivity);
       }
     };
-  }, []);
+  }, [expectedStoreId, expectedUserId]);
 
   if (secondsRemaining === null) return null;
 

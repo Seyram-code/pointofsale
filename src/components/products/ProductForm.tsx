@@ -12,12 +12,14 @@ import { useToast } from "@/components/ui/Toast";
 import { DEFAULT_TAX_RATE } from "@/lib/config/constants";
 import { useCurrentUser } from "@/components/providers/SessionProvider";
 
-export function ProductForm({ mode = "retail" }: { mode?: "retail" | "restaurant" }) {
+export function ProductForm({ mode = "retail", canCreateNonStock = false }: { mode?: "retail" | "restaurant" | "salon"; canCreateNonStock?: boolean }) {
   const isRestaurant = mode === "restaurant";
+  const isSalon = mode === "salon";
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [sellingPrice, setSellingPrice] = useState("");
   const [barcode, setBarcode] = useState("");
+  const [nonStock, setNonStock] = useState(false);
   const [cameraScannerOpen, setCameraScannerOpen] = useState(false);
   const [taxRate, setTaxRate] = useState(DEFAULT_TAX_RATE);
   const toast = useToast();
@@ -45,12 +47,13 @@ export function ProductForm({ mode = "retail" }: { mode?: "retail" | "restaurant
         name: form.get("name"),
         sku: form.get("sku"),
         barcode: form.get("barcode"),
-        costPrice: form.get("costPrice"),
+        costPrice: nonStock ? 0 : form.get("costPrice"),
         sellingPrice: finalPrice,
-        quantity: form.get("quantity"),
-        expiryDate: form.get("expiryDate") || undefined,
+        quantity: nonStock ? 0 : form.get("quantity"),
+        expiryDate: nonStock ? undefined : form.get("expiryDate") || undefined,
+        nonStock,
       });
-      toast.success(isRestaurant ? "Menu item added" : "Product added", isRestaurant ? "The menu item was added successfully." : "The product was added successfully.");
+      toast.success(isRestaurant ? "Menu item added" : nonStock ? "Service added" : "Product added", isRestaurant ? "The menu item was added successfully." : nonStock ? "The service was added successfully." : "The product was added successfully.");
       window.setTimeout(() => window.location.assign("/products"), 600);
     } catch (submissionError) {
       setError(submissionError instanceof Error ? submissionError.message : "Unable to create product.");
@@ -62,10 +65,10 @@ export function ProductForm({ mode = "retail" }: { mode?: "retail" | "restaurant
     <>
       <form onSubmit={submit} className="max-w-2xl space-y-4">
         <Card>
-          <CardHeader><CardTitle>{isRestaurant ? "Menu item details" : "Product details"}</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{isRestaurant ? "Menu item details" : isSalon ? "Salon service or product details" : "Product details"}</CardTitle></CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
-            <Input label={isRestaurant ? "Menu item name" : "Product name"} name="name" required placeholder={isRestaurant ? "e.g. Jollof rice" : "e.g. Milo 400g"} />
-            <Input label={isRestaurant ? "Item code (optional)" : "SKU (optional)"} name="sku" placeholder={isRestaurant ? "e.g. JOLLOF-01" : "e.g. MILO-400"} />
+            <Input label={isRestaurant ? "Menu item name" : isSalon ? "Service or product name" : "Product name"} name="name" required placeholder={isRestaurant ? "e.g. Jollof rice" : isSalon ? "e.g. Hair styling" : "e.g. Milo 400g"} />
+            <Input label={isRestaurant || isSalon ? "Item code (optional)" : "SKU (optional)"} name="sku" placeholder={isRestaurant ? "e.g. JOLLOF-01" : isSalon ? "e.g. HAIR-STYLE" : "e.g. MILO-400"} />
             <Input
               label="Barcode"
               name="barcode"
@@ -83,9 +86,9 @@ export function ProductForm({ mode = "retail" }: { mode?: "retail" | "restaurant
                 </button>
               ) : undefined}
             />
-            <Input label={isRestaurant ? "Ingredient cost (GHS)" : "Cost price (GHS)"} name="costPrice" type="number" min="0" step="0.01" required placeholder="0.00" />
+            {!nonStock && <Input label={isRestaurant ? "Ingredient cost (GHS)" : "Cost price (GHS)"} name="costPrice" type="number" min="0" step="0.01" required placeholder="0.00" />}
             <Input
-              label={isRestaurant ? "Menu price before tax (GHS)" : "Selling price before tax (GHS)"}
+              label={nonStock ? (isSalon ? "Service fee before tax (GHS)" : "Service charge before tax (GHS)") : isRestaurant ? "Menu price before tax (GHS)" : isSalon ? "Product price before tax (GHS)" : "Selling price before tax (GHS)"}
               name="sellingPrice"
               type="number"
               min="0"
@@ -97,17 +100,31 @@ export function ProductForm({ mode = "retail" }: { mode?: "retail" | "restaurant
               hint={`Tax (${(taxRate * 100).toFixed(2)}%): GHS ${taxAmount.toFixed(2)}`}
             />
             <div className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-2.5 dark:border-brand-900 dark:bg-brand-950/30">
-              <p className="text-xs font-medium text-fg-muted">Final checkout price</p>
+              <p className="text-xs font-medium text-fg-muted">{nonStock ? "Final service charge" : "Final checkout price"}</p>
               <p className="mt-1 text-xl font-semibold text-fg">GHS {finalPrice.toFixed(2)}</p>
-              <p className="mt-0.5 text-xs text-fg-muted">Selling price plus tax</p>
+              <p className="mt-0.5 text-xs text-fg-muted">{nonStock ? "Service fee plus tax" : "Selling price plus tax"}</p>
             </div>
-            <Input label={isRestaurant ? "Opening stock" : "Opening quantity"} name="quantity" type="number" min="0" step="0.001" required placeholder="0" />
-            <Input label={isRestaurant ? "Use-by date" : "Expiry date"} name="expiryDate" type="date" hint={isRestaurant ? "Optional for ingredients or prepared items" : "Optional for products with an expiry date"} />
+            {canCreateNonStock && (
+              <label className="flex items-start gap-3 rounded-lg border border-line p-3 sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={nonStock}
+                  onChange={(event) => setNonStock(event.target.checked)}
+                  className="mt-0.5 size-4 accent-brand-600"
+                />
+                <span>
+                  <span className="block text-sm font-medium text-fg">Non-stock service</span>
+                  <span className="mt-0.5 block text-xs text-fg-muted">For services such as haircuts. Stock is not deducted at checkout.</span>
+                </span>
+              </label>
+            )}
+            {!nonStock && <Input label={isRestaurant ? "Opening stock" : "Opening quantity"} name="quantity" type="number" min="0" step="0.001" required placeholder="0" />}
+            {!nonStock && <Input label={isRestaurant ? "Use-by date" : "Expiry date"} name="expiryDate" type="date" hint={isRestaurant ? "Optional for ingredients or prepared items" : "Optional for products with an expiry date"} />}
           </CardContent>
         </Card>
         {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-danger dark:bg-red-950/40">{error}</p>}
         <div className="flex flex-wrap gap-2">
-          <Button type="submit" loading={saving} leftIcon={<Save className="size-4" />}>{isRestaurant ? "Create menu item" : "Create product"}</Button>
+          <Button type="submit" loading={saving} leftIcon={<Save className="size-4" />}>{isRestaurant ? "Create menu item" : isSalon && nonStock ? "Create service" : "Create product"}</Button>
           <Link href="/products" className="inline-flex h-11 items-center gap-2 rounded-lg border border-line-strong bg-card px-4 text-sm font-medium text-fg hover:bg-muted"><ArrowLeft className="size-4" />Cancel</Link>
         </div>
       </form>

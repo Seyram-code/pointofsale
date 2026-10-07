@@ -4,6 +4,7 @@ import { PERMISSIONS } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, handleApiError, ok } from "@/lib/api/response";
 import { searchProducts } from "@/lib/services/product.service";
+import { DECIMAL_MONEY, DECIMAL_QTY } from "@/lib/services/cart.service";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -17,9 +18,15 @@ export async function PATCH(request: NextRequest, { params }: Context) {
     const name = typeof body.name === "string" ? body.name.trim() : "";
     const sku = typeof body.sku === "string" ? body.sku.trim() : "";
     const barcode = typeof body.barcode === "string" ? body.barcode.trim() : "";
-    const costPrice = Number(body.costPrice);
+    const nonStock = body.nonStock === true;
+    const costPrice = nonStock ? 0 : Number(body.costPrice);
     const sellingPrice = Number(body.sellingPrice);
-    if (!name || !sku || !Number.isFinite(costPrice) || !Number.isFinite(sellingPrice) || costPrice < 0 || sellingPrice < 0) throw ApiError.badRequest("Name, SKU and valid prices are required");
+    const openingQuantity = Number(body.quantity ?? 0);
+    const canManageNonStock = ["OTHER", "RESTAURANT", "SALON_SPA"].includes(session.user.businessType ?? "");
+    if (nonStock && !canManageNonStock) {
+      throw new ApiError("FORBIDDEN", "Non-stock services are not available for this business type.", 403);
+    }
+    if (!name || !sku || !Number.isFinite(costPrice) || !Number.isFinite(sellingPrice) || costPrice < 0 || sellingPrice < 0 || !Number.isFinite(openingQuantity) || openingQuantity < 0) throw ApiError.badRequest("Name, SKU, valid prices and a valid quantity are required");
 
     if (barcode) {
       const existingBarcode = await prisma.barcode.findFirst({
@@ -40,9 +47,31 @@ export async function PATCH(request: NextRequest, { params }: Context) {
     }
 
     await prisma.$transaction(async (tx) => {
-      const product = await tx.product.findFirst({ where: { id, storeId, deletedAt: null }, select: { id: true } });
+      const product = await tx.product.findFirst({ where: { id, storeId, deletedAt: null }, select: { id: true, trackStock: true } });
       if (!product) throw ApiError.notFound("Product");
-      await tx.product.update({ where: { id }, data: { name, sku, costPrice, sellingPrice } });
+      await tx.product.update({ where: { id }, data: { name, sku, costPrice, sellingPrice, ...(canManageNonStock ? { trackStock: !nonStock, type: nonStock ? "SERVICE" : "UNIT" } : {}) } });
+      if (canManageNonStock && !product.trackStock && !nonStock) {
+        await tx.inventoryLevel.upsert({
+          where: { storeId_productId: { storeId, productId: id } },
+          create: { storeId, productId: id, quantity: DECIMAL_QTY(openingQuantity), averageCost: DECIMAL_MONEY(costPrice) },
+          update: { quantity: DECIMAL_QTY(openingQuantity), averageCost: DECIMAL_MONEY(costPrice) },
+        });
+        if (openingQuantity > 0) {
+          await tx.stockMovement.create({
+            data: {
+              storeId,
+              productId: id,
+              type: "PURCHASE_RECEIPT",
+              quantity: DECIMAL_QTY(openingQuantity),
+              balanceAfter: DECIMAL_QTY(openingQuantity),
+              unitCost: DECIMAL_MONEY(costPrice),
+              referenceType: "PRODUCT_CREATE",
+              reason: "Opening stock when enabling stock tracking",
+              performedById: session.user.id,
+            },
+          });
+        }
+      }
       await tx.barcode.deleteMany({ where: { productId: id } });
       if (barcode) await tx.barcode.create({ data: { productId: id, code: barcode, isPrimary: true } });
     });

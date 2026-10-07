@@ -23,7 +23,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <SessionProvider user={session.user}>
-      <SessionExpiryGuard />
+      <SessionExpiryGuard expectedUserId={session.user.id} expectedStoreId={session.user.storeId} />
       <AppShell restricted={!hasAccess}>{children}</AppShell>
     </SessionProvider>
   );
