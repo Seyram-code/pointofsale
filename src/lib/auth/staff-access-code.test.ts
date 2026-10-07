@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createStaffAccessCode, getStoreAccessCodePrefix, hashStaffAccessCode } from "@/lib/auth/staff-access-code";
+import { createStaffAccessCode, createUniqueStaffAccessCode, getStoreAccessCodePrefix, hashStaffAccessCode } from "@/lib/auth/staff-access-code";
 import { staffAccessCodeLoginSchema } from "@/lib/validations/auth.schema";
 
 test("staff access codes use the store prefix and a three-digit suffix", () => {
@@ -27,4 +27,13 @@ test("staff login accepts generated access codes with digits in the store prefix
   assert.match(accessCode, /^S9E\d{3}$/);
   assert.equal(staffAccessCodeLoginSchema.safeParse({ mode: "staff", accessCode }).success, true);
   assert.equal(staffAccessCodeLoginSchema.safeParse({ mode: "staff", accessCode: "S9E419" }).success, true);
+});
+
+test("generated access codes avoid hashes already used in the database", () => {
+  const usedHashes = [hashStaffAccessCode("ACS909"), hashStaffAccessCode("ACS910")];
+  const candidate = createUniqueStaffAccessCode("Adom Cold Store", usedHashes);
+
+  assert.notEqual(candidate.hash, usedHashes[0]);
+  assert.notEqual(candidate.hash, usedHashes[1]);
+  assert.match(candidate.accessCode, /^ACS\d{3}$/);
 });

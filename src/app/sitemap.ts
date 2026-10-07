@@ -5,7 +5,7 @@ const siteUrl = process.env.NEXT_PUBLIC_APP_URL
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const lastModified = new Date();
-  return ["/", "/plans", "/privacy-policy", "/terms"].map((path) => ({
+  return ["/", "/plans", "/privacy-policy", "/terms", "/contact"].map((path) => ({
     url: new URL(path, siteUrl).toString(),
     lastModified,
     changeFrequency: path === "/" ? "weekly" : "yearly",

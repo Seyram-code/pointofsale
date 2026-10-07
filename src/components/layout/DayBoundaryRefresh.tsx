@@ -3,11 +3,18 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-export function DayBoundaryRefresh() {
+export function DayBoundaryRefresh({
+  expectedUserId,
+  expectedStoreId,
+}: {
+  expectedUserId?: string;
+  expectedStoreId?: string | null;
+}) {
   const router = useRouter();
 
   useEffect(() => {
     let checking = false;
+    let lastDashboardDate = new Date().toISOString().slice(0, 10);
 
     async function refreshIfAuthenticated() {
       if (checking || document.visibilityState !== "visible") return;
@@ -19,7 +26,23 @@ export function DayBoundaryRefresh() {
           window.location.replace(`/login?next=${encodeURIComponent(next)}`);
           return;
         }
-        if (response.ok) router.refresh();
+        if (response.ok) {
+          const payload = await response.json();
+          const currentUser = payload?.data as { id?: string; storeId?: string | null } | undefined;
+          if (
+            expectedUserId &&
+            (currentUser?.id !== expectedUserId || currentUser?.storeId !== expectedStoreId)
+          ) {
+            window.location.replace(window.location.href);
+            return;
+          }
+
+          const dashboardDate = new Date().toISOString().slice(0, 10);
+          if (dashboardDate !== lastDashboardDate) {
+            lastDashboardDate = dashboardDate;
+            router.refresh();
+          }
+        }
       } catch {
       } finally {
         checking = false;
@@ -38,14 +61,16 @@ export function DayBoundaryRefresh() {
 
     window.addEventListener("focus", refreshOnReturn);
     document.addEventListener("visibilitychange", refreshOnReturn);
+    window.addEventListener("pageshow", refreshOnReturn);
 
     return () => {
       window.clearTimeout(refreshTimer);
       window.clearInterval(interval);
       window.removeEventListener("focus", refreshOnReturn);
       document.removeEventListener("visibilitychange", refreshOnReturn);
+      window.removeEventListener("pageshow", refreshOnReturn);
     };
-  }, [router]);
+  }, [expectedStoreId, expectedUserId, router]);
 
   return null;
 }

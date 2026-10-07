@@ -4,6 +4,7 @@ import { ApiError, handleApiError, ok } from "@/lib/api/response";
 import { PERMISSIONS } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/db/prisma";
 import { getPaymentProvider } from "@/lib/payments/registry";
+import { shouldAttemptProviderRefund } from "@/lib/payments/refund-gating";
 import type { PaymentMethod } from "@/lib/payments/types";
 import { DECIMAL_MONEY, DECIMAL_QTY } from "@/lib/services/cart.service";
 import { applySalesSummary } from "@/lib/services/sales-summary.service";
@@ -33,14 +34,29 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     });
     if (!returnRecord) throw ApiError.conflict("Only an approved return can be completed");
 
-    if (["CASH", "MOMO", "CARD_TERMINAL", "CARD", "CARD_REVERSAL"].includes(returnRecord.refundMethod)) {
-      const paymentMethod = returnRecord.refundMethod === "CARD_REVERSAL" ? undefined : returnRecord.refundMethod as PaymentMethod;
-      const payment = returnRecord.sale.payments.find((item) => !paymentMethod || item.method === paymentMethod) ?? returnRecord.sale.payments[0];
+    const providerRefundMethod = returnRecord.refundMethod === "CARD_REVERSAL"
+      ? returnRecord.sale.payments.find((item) => item.method === "CARD" || item.method === "CARD_TERMINAL")?.method as PaymentMethod | undefined
+      : returnRecord.refundMethod === "CASH" || returnRecord.refundMethod === "MOMO"
+        ? returnRecord.refundMethod as PaymentMethod
+        : undefined;
+
+    if (providerRefundMethod) {
+      const payment = returnRecord.sale.payments.find((item) => item.method === providerRefundMethod) ?? returnRecord.sale.payments[0];
       if (!payment) throw ApiError.badRequest("No successful payment is available for this refund");
       const provider = getPaymentProvider(payment.method as PaymentMethod);
-      if (!provider.refund) throw ApiError.badRequest("This payment method does not support refunds");
-      const refund = await provider.refund({ externalRef: payment.externalRef ?? "cash", amount: Number(returnRecord.total), reason: returnRecord.reason, method: payment.method as PaymentMethod });
-      if (refund.state !== "REVERSED" && refund.state !== "SUCCESSFUL") throw ApiError.badRequest(refund.failureReason ?? "The payment provider rejected the refund");
+
+      if (shouldAttemptProviderRefund(payment.method as PaymentMethod, provider)) {
+        const refund = await provider.refund!({
+          externalRef: payment.externalRef ?? "cash",
+          amount: Number(returnRecord.total),
+          reason: returnRecord.reason,
+          method: payment.method as PaymentMethod,
+        });
+
+        if (refund.state !== "REVERSED" && refund.state !== "SUCCESSFUL") {
+          throw ApiError.badRequest(refund.failureReason ?? "The payment provider rejected the refund");
+        }
+      }
     }
 
     const completed = await prisma.$transaction(async (tx) => {

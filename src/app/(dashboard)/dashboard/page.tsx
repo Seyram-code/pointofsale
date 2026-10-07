@@ -22,7 +22,7 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <DayBoundaryRefresh />
+      <DayBoundaryRefresh expectedUserId={user.id} expectedStoreId={user.storeId} />
       <DashboardView user={user} data={data} subscription={subscription} />
     </>
   );

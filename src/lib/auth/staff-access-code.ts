@@ -18,6 +18,23 @@ export function createStaffAccessCode(storeName: string) {
   return { accessCode, hash: hashStaffAccessCode(accessCode) };
 }
 
+export function createUniqueStaffAccessCode(
+  storeName: string,
+  existingHashes: Iterable<string | null | undefined> = [],
+) {
+  const used = new Set<string>();
+  for (const hash of existingHashes) {
+    if (hash) used.add(hash.toLowerCase());
+  }
+
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const candidate = createStaffAccessCode(storeName);
+    if (!used.has(candidate.hash)) return candidate;
+  }
+
+  throw new Error("Could not generate a unique staff access code. Try again.");
+}
+
 export function hashStaffAccessCode(accessCode: string) {
   return createHash("sha256").update(accessCode).digest("hex");
 }

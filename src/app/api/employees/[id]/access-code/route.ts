@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { authorize } from "@/lib/auth/guard";
 import { PERMISSIONS } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/db/prisma";
-import { createStaffAccessCode, encryptStaffAccessCode } from "@/lib/auth/staff-access-code";
+import { createUniqueStaffAccessCode, encryptStaffAccessCode } from "@/lib/auth/staff-access-code";
 import { ApiError, handleApiError, ok } from "@/lib/api/response";
 import { recordAudit, requestContext } from "@/lib/services/audit.service";
 import { revokeAllSessions } from "@/lib/auth/session";
@@ -22,9 +22,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       throw new ApiError("FORBIDDEN", "Only administrators can reset administrator access codes", 403);
     }
 
+    const existingHashes = await prisma.user.findMany({
+      where: { staffAccessCodeHash: { not: null } },
+      select: { staffAccessCodeHash: true },
+    });
+
     let accessCode = "";
     for (let attempt = 0; attempt < 20; attempt += 1) {
-      const generatedCode = createStaffAccessCode(session.user.storeName ?? "Shop");
+      const generatedCode = createUniqueStaffAccessCode(session.user.storeName ?? "Shop", existingHashes.map((user) => user.staffAccessCodeHash));
       try {
         await prisma.user.update({
           where: { id: user.id },

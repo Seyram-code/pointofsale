@@ -12,6 +12,7 @@ const PUBLIC_PATHS = [
   "/plans",
   "/privacy-policy",
   "/terms",
+  "/contact",
   "/forbidden",
   "/offline",
   "/robots.txt",
@@ -24,6 +25,7 @@ const PUBLIC_PATHS = [
   "/api/auth/resend-shop-activation",
   "/api/auth/request-password-reset",
   "/api/auth/reset-password",
+  "/api/contact",
   "/api/health",
   "/api/cron/reconcile-payments",
   // Provider callbacks authenticate by signature, not by session.

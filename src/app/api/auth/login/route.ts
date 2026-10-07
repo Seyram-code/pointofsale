@@ -43,21 +43,35 @@ export async function POST(request: NextRequest) {
 
       const normalized = identifier.toLowerCase();
       const normalizedStaffCode = identifier.replace(/\s+/g, "").toUpperCase();
-      user = await withRequestTimeout(
-        prisma.user.findFirst({
-          where: {
-            deletedAt: null,
-            OR: [
-              { email: normalized },
-              { staffCode: normalizedStaffCode },
-              { role: "ADMIN", store: { email: normalized } },
-            ],
-            employeeProfile: { is: null },
-          },
-        }),
-        8000,
-        "Database is unavailable or taking too long to respond.",
-      );
+      if (normalized.includes("@")) {
+        user = await withRequestTimeout(
+          prisma.user.findFirst({
+            where: {
+              deletedAt: null,
+              OR: [
+                { email: normalized },
+                { role: "ADMIN", store: { email: normalized } },
+              ],
+              employeeProfile: { is: null },
+            },
+          }),
+          8000,
+          "Database is unavailable or taking too long to respond.",
+        );
+      } else {
+        const matchingUsers = await withRequestTimeout(
+          prisma.user.findMany({
+            where: {
+              staffCode: normalizedStaffCode,
+              deletedAt: null,
+            },
+            take: 2,
+          }),
+          8000,
+          "Database is unavailable or taking too long to respond.",
+        );
+        user = matchingUsers.length === 1 ? matchingUsers[0] : null;
+      }
     }
 
     // Same generic message whether the account is missing or the password is wrong.

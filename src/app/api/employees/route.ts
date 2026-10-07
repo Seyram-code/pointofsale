@@ -3,7 +3,7 @@ import type { UserRole } from "@prisma/client";
 import { authorize } from "@/lib/auth/guard";
 import { PERMISSIONS } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/db/prisma";
-import { createStaffAccessCode, encryptStaffAccessCode, getStoreAccessCodePrefix, hashStaffAccessCode } from "@/lib/auth/staff-access-code";
+import { createUniqueStaffAccessCode, encryptStaffAccessCode, getStoreAccessCodePrefix, hashStaffAccessCode } from "@/lib/auth/staff-access-code";
 import { ApiError, created, handleApiError, ok } from "@/lib/api/response";
 import { recordAudit, requestContext } from "@/lib/services/audit.service";
 import { nextShortNumber, peekShortNumber, STAFF_ROLE_PREFIXES } from "@/lib/services/numbering.service";
@@ -31,15 +31,12 @@ export async function GET(request: NextRequest) {
     const includeAccessCode = request.nextUrl.searchParams.get("includeAccessCode") === "1";
     let accessCode: string | undefined;
     if (includeAccessCode) {
-      for (let attempt = 0; attempt < 20; attempt += 1) {
-        const candidate = createStaffAccessCode(session.user.storeName ?? "Shop");
-        const existing = await prisma.user.findUnique({ where: { staffAccessCodeHash: candidate.hash }, select: { id: true } });
-        if (!existing) {
-          accessCode = candidate.accessCode;
-          break;
-        }
-      }
-      if (!accessCode) throw ApiError.badRequest("Could not generate a unique staff access code. Try again.");
+      const existingHashes = await prisma.user.findMany({
+        where: { staffAccessCodeHash: { not: null } },
+        select: { staffAccessCodeHash: true },
+      });
+      const candidate = createUniqueStaffAccessCode(session.user.storeName ?? "Shop", existingHashes.map((user) => user.staffAccessCodeHash));
+      accessCode = candidate.accessCode;
     }
     return ok({ staffCode, employeeNumber, ...(accessCode ? { accessCode } : {}) });
   } catch (error) {
@@ -73,6 +70,18 @@ export async function POST(request: NextRequest) {
     const codePattern = new RegExp(`^${getStoreAccessCodePrefix(session.user.storeName ?? "Shop")}\\d{3}$`);
     if (!codePattern.test(requestedAccessCode)) throw ApiError.badRequest("Generate a valid staff access code for this store");
     const requestedAccessCodeHash = hashStaffAccessCode(requestedAccessCode);
+    const existingAccessCode = await prisma.user.findUnique({
+      where: { staffAccessCodeHash: requestedAccessCodeHash },
+      select: { id: true },
+    });
+    if (existingAccessCode) {
+      throw ApiError.conflict("This staff access code is already in use by another account.");
+    }
+
+    const existingHashes = await prisma.user.findMany({
+      where: { staffAccessCodeHash: { not: null } },
+      select: { staffAccessCodeHash: true },
+    });
     let createdUser;
     let staffAccessCode = "";
     for (let attempt = 0; attempt < 20; attempt += 1) {
@@ -82,7 +91,7 @@ export async function POST(request: NextRequest) {
           const employeeNumber = await nextShortNumber(tx, storeId, "EMPLOYEE", "EMP");
           const generatedCode = attempt === 0
             ? { accessCode: requestedAccessCode, hash: requestedAccessCodeHash }
-            : createStaffAccessCode(session.user.storeName ?? "Shop");
+            : createUniqueStaffAccessCode(session.user.storeName ?? "Shop", existingHashes.map((user) => user.staffAccessCodeHash));
           const user = await tx.user.create({
             data: {
               storeId,

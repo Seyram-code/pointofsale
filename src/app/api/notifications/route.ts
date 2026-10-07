@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { authorize } from "@/lib/auth/guard";
+import { canAccessNotification } from "@/lib/auth/notification-access";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, created, handleApiError, ok } from "@/lib/api/response";
 
@@ -38,6 +39,24 @@ export async function POST(request: NextRequest) {
 
     if (!storeId && !userId) {
       throw ApiError.badRequest("A notification must target a user or store");
+    }
+
+    if (input.storeId && session.user.storeId && input.storeId !== session.user.storeId) {
+      throw new ApiError("FORBIDDEN", "You can only create notifications for your own store", 403);
+    }
+
+    if (input.userId && input.userId !== session.user.id) {
+      const targetUser = await prisma.user.findUnique({
+        where: { id: input.userId },
+        select: { id: true, storeId: true },
+      });
+      if (!targetUser || !session.user.storeId || targetUser.storeId !== session.user.storeId) {
+        throw new ApiError("FORBIDDEN", "You can only target users in your own store", 403);
+      }
+    }
+
+    if (!canAccessNotification(session, { userId, storeId })) {
+      throw new ApiError("FORBIDDEN", "You cannot create this notification", 403);
     }
 
     const notification = await prisma.notification.create({
