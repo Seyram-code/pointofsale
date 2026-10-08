@@ -964,6 +964,21 @@ model Notification {
   @@index([storeId, createdAt])
 }
 
+model PlatformHealthSignal {
+  id          String    @id @default(cuid())
+  signalKey   String    @unique
+  title       String
+  body        String    @db.Text
+  severity    String
+  isActive    Boolean   @default(true)
+  firstSeenAt DateTime  @default(now())
+  lastSeenAt  DateTime  @default(now())
+  lastNotifiedAt DateTime?
+  resolvedAt  DateTime?
+
+  @@index([isActive, lastSeenAt])
+}
+
 model SupportTicket {
   id          String                @id @default(cuid())
   storeId     String

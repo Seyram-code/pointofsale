@@ -15,6 +15,7 @@ const ACCESS_CODE_ONLY_EMPLOYEES = "20261002130000_allow_access_code_only_employ
 const ENCRYPTED_STAFF_ACCESS_CODES = "20261002140000_store_encrypted_staff_access_codes";
 const STORE_EMAIL_ACTIVATION = "20261003100000_add_store_email_activation";
 const PASSWORD_RESET_TOKENS = "20261004160000_add_password_reset_tokens";
+const PLATFORM_HEALTH_SIGNALS = "20261008100000_add_platform_health_signals";
 let connection;
 
 async function query(sql, values) {
@@ -172,6 +173,23 @@ async function reconcilePasswordResetTokens(tables, applied) {
   }
 }
 
+async function reconcilePlatformHealthSignals(tables, applied) {
+  const tableExists = tables.has("PlatformHealthSignal");
+  if (applied.has(PLATFORM_HEALTH_SIGNALS) && !tableExists) {
+    throw new Error("The platform health signals migration is recorded as applied, but its table is missing.");
+  }
+  if (!applied.has(PLATFORM_HEALTH_SIGNALS) && tableExists) {
+    const columns = await query("SELECT COLUMN_NAME AS columnName FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'PlatformHealthSignal'");
+    const required = new Set(["signalKey", "title", "body", "severity", "isActive", "firstSeenAt", "lastSeenAt", "lastNotifiedAt", "resolvedAt"]);
+    const existing = new Set(columns.map((column) => column.columnName));
+    if ([...required].some((column) => !existing.has(column))) {
+      throw new Error("The imported PlatformHealthSignal table is partial; inspect it before deploying migrations.");
+    }
+    resolveMigration(PLATFORM_HEALTH_SIGNALS);
+    applied.add(PLATFORM_HEALTH_SIGNALS);
+  }
+}
+
 async function reconcileStaffAccessCodeSchema(tables, applied) {
   if (!tables.has("User")) return;
 
@@ -255,6 +273,7 @@ async function main() {
   await reconcileStaffAccessCodeSchema(tables, currentApplied);
   await reconcileStoreEmailActivation(tables, currentApplied);
   await reconcilePasswordResetTokens(tables, currentApplied);
+  await reconcilePlatformHealthSignals(tables, currentApplied);
   deployMigrations();
 }
 

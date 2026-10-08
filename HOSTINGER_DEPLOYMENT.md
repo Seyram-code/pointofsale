@@ -69,3 +69,15 @@ curl --fail --silent --show-error \
 ```
 
 The endpoint checks pending CARD and MoMo payments at least two minutes old, up to 50 per run. It releases stock only after Paystack verification confirms failure/cancellation, and completes the sale and receipt only after a successful amount-matched verification. Transient errors remain pending for a later run. Store `CRON_SECRET` in Hostinger environment variables and configure the cron service to send it as the bearer token; never place it in a public URL.
+
+## 7. Super Admin email alerts
+
+Configure the SMTP variables above and create a second Hostinger cron job to check platform health signals every five minutes:
+
+```bash
+curl --fail --silent --show-error \
+	-H "Authorization: Bearer $CRON_SECRET" \
+	https://your-domain.example/api/cron/platform-health-alerts
+```
+
+Active Super Admin accounts with an email address receive alerts for new business registrations and support tickets. The scheduled health check emails new platform notices and later recovery notices; active signals are deduplicated and retried if SMTP delivery fails. Apply the `20261008100000_add_platform_health_signals` Prisma migration before enabling the cron job.

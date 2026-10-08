@@ -1,8 +1,9 @@
-import type { NextRequest } from "next/server";
+import { after, type NextRequest } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError, created, handleApiError, ok } from "@/lib/api/response";
+import { notifySuperAdmins } from "@/lib/services/super-admin-alerts.service";
 
 const ticketSchema = z.object({
   subject: z.string().trim().min(3).max(191),
@@ -75,6 +76,23 @@ export async function POST(request: NextRequest) {
         console.error("[support] ticket submitted but admin notifications failed", notificationError);
       }
     }
+
+    after(async () => {
+      await notifySuperAdmins({
+        subject: `New ${input.priority.toLowerCase()} support ticket: ${input.subject}`,
+        text: `${session.user.fullName} submitted a support ticket for ${ticket.store.name}.`,
+        details: [
+          { label: "Business", value: ticket.store.name },
+          { label: "Submitted by", value: session.user.fullName },
+          { label: "Submitter email", value: session.user.email ?? "Not provided" },
+          { label: "Category", value: input.category },
+          { label: "Priority", value: input.priority },
+          { label: "Subject", value: input.subject },
+          { label: "Description", value: input.description },
+          { label: "Ticket ID", value: ticket.id },
+        ],
+      });
+    });
 
     return created(ticket);
   } catch (error) {

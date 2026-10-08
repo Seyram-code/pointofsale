@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, CreditCard, LogOut, Menu, Moon, Sun, UserCog } from "lucide-react";
+import { Bell, CreditCard, LogOut, Menu, Moon, Palette, Sun, UserCog } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { useCurrentUser } from "@/components/providers/SessionProvider";
-import { useTheme } from "@/components/providers/ThemeProvider";
+import { COLOR_PALETTES, useTheme } from "@/components/providers/ThemeProvider";
 import { ROLE_LABELS } from "@/lib/auth/permissions";
 import { api } from "@/lib/api/client";
 
@@ -22,8 +22,9 @@ interface AppNotification {
 export function Topbar({ onOpenMenu, restricted = false }: { onOpenMenu: () => void; restricted?: boolean }) {
   const user = useCurrentUser();
   const router = useRouter();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, palette, setPalette } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [signingOut, setSigningOut] = useState(false);
@@ -85,6 +86,58 @@ export function Topbar({ onOpenMenu, restricted = false }: { onOpenMenu: () => v
       >
         {theme === "dark" ? <Sun className="size-5" /> : <Moon className="size-5" />}
       </button>
+
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setPaletteOpen((open) => !open)}
+          aria-label="Choose color palette"
+          aria-expanded={paletteOpen}
+          aria-haspopup="dialog"
+          className="rounded-lg p-2 text-fg-secondary hover:bg-muted"
+        >
+          <Palette className="size-5" />
+        </button>
+        {paletteOpen && (
+          <>
+            <button
+              type="button"
+              className="fixed inset-0 z-10 cursor-default"
+              aria-label="Close color palette picker"
+              onClick={() => setPaletteOpen(false)}
+            />
+            <div
+              role="dialog"
+              aria-label="Color palette"
+              className="absolute right-0 z-20 mt-2 w-64 rounded-xl border border-line bg-card p-4 shadow-[var(--shadow-panel)]"
+            >
+              <p className="text-sm font-semibold text-fg">System color</p>
+              <div className="mt-3 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Choose system color">
+                {COLOR_PALETTES.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={palette === option.id}
+                    onClick={() => setPalette(option.id)}
+                    className="flex items-center gap-2 rounded-lg border border-line px-2.5 py-2 text-left text-xs font-medium text-fg-secondary hover:bg-muted aria-checked:border-brand-600 aria-checked:text-fg"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="size-5 shrink-0 rounded-full border border-black/10"
+                      style={{ backgroundColor: option.color }}
+                    />
+                    <span className="min-w-0">
+                      <span className="block">{option.name}</span>
+                      <span className="block font-mono text-[10px] text-fg-muted">{option.color}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
 
       {!restricted && <div className="relative">
         <button

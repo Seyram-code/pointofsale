@@ -68,6 +68,58 @@ export interface PlatformOverview {
   metrics: PlatformMetrics;
 }
 
+function buildPlatformNotices(
+  stores: Array<Pick<PlatformStoreSummary, "id" | "name" | "isActive" | "createdAt" | "status" | "trialEndsAt">>,
+  unresolvedSupportTickets: number,
+  now = new Date(),
+): PlatformNotice[] {
+  const notices: PlatformNotice[] = [];
+
+  for (const store of stores) {
+    if (!store.isActive) {
+      notices.push({
+        id: `store-inactive-${store.id}`,
+        title: `${store.name} is inactive`,
+        body: `The store ${store.name} is marked inactive. Review and reactivate it when the branch is ready.`,
+        severity: "warning",
+        createdAt: store.createdAt,
+      });
+    }
+
+    if (store.status === "TRIALING" && store.trialEndsAt && store.trialEndsAt < now) {
+      notices.push({
+        id: `trial-ended-${store.id}`,
+        title: `${store.name} trial has ended`,
+        body: `The trial for ${store.name} ended on ${store.trialEndsAt.toISOString().slice(0, 10)}. Confirm billing or suspend access.`,
+        severity: "danger",
+        createdAt: store.trialEndsAt,
+      });
+    }
+
+    if (store.status === "PAST_DUE" || store.status === "EXPIRED" || store.status === "CANCELED") {
+      notices.push({
+        id: `subscription-${store.id}`,
+        title: `${store.name} has a subscription concern`,
+        body: `${store.name} currently reports subscription status ${store.status}. Review billing and activation.`,
+        severity: "danger",
+        createdAt: store.createdAt,
+      });
+    }
+  }
+
+  if (unresolvedSupportTickets > 0) {
+    notices.push({
+      id: "support-tickets-open",
+      title: `${unresolvedSupportTickets} support ticket${unresolvedSupportTickets === 1 ? "" : "s"} need attention`,
+      body: "Review the support inbox and respond to stores with open platform issues.",
+      severity: unresolvedSupportTickets >= 5 ? "danger" : "warning",
+      createdAt: now,
+    });
+  }
+
+  return notices;
+}
+
 export async function getPlatformOverview(): Promise<PlatformOverview> {
   const supportTicketModel = (prisma as unknown as {
     supportTicket?: { count: (args: { where: { status: { notIn: string[] } } }) => Promise<number> };
@@ -184,49 +236,7 @@ export async function getPlatformOverview(): Promise<PlatformOverview> {
     };
   });
 
-  const notices: PlatformNotice[] = [];
-
-  for (const store of storeMetrics) {
-    if (!store.isActive) {
-      notices.push({
-        id: `store-inactive-${store.id}`,
-        title: `${store.name} is inactive`,
-        body: `The store ${store.name} is marked inactive. Review and reactivate it when the branch is ready.`,
-        severity: "warning",
-        createdAt: store.createdAt,
-      });
-    }
-
-    if (store.status === "TRIALING" && store.trialEndsAt && store.trialEndsAt < new Date()) {
-      notices.push({
-        id: `trial-ended-${store.id}`,
-        title: `${store.name} trial has ended`,
-        body: `The trial for ${store.name} ended on ${store.trialEndsAt.toISOString().slice(0, 10)}. Confirm billing or suspend access.`,
-        severity: "danger",
-        createdAt: store.trialEndsAt,
-      });
-    }
-
-    if (store.status === "PAST_DUE" || store.status === "EXPIRED" || store.status === "CANCELED") {
-      notices.push({
-        id: `subscription-${store.id}`,
-        title: `${store.name} has a subscription concern`,
-        body: `${store.name} currently reports subscription status ${store.status}. Review billing and activation.`,
-        severity: "danger",
-        createdAt: store.createdAt,
-      });
-    }
-  }
-
-  if (unresolvedSupportTickets > 0) {
-    notices.push({
-      id: "support-tickets-open",
-      title: `${unresolvedSupportTickets} support ticket${unresolvedSupportTickets === 1 ? "" : "s"} need attention`,
-      body: "Review the support inbox and respond to stores with open platform issues.",
-      severity: unresolvedSupportTickets >= 5 ? "danger" : "warning",
-      createdAt: new Date(),
-    });
-  }
+  const notices = buildPlatformNotices(storeMetrics, unresolvedSupportTickets);
 
   const totals = {
     stores: storeMetrics.length,
@@ -262,4 +272,43 @@ export async function getPlatformOverview(): Promise<PlatformOverview> {
   };
 
   return { stores: storeMetrics, notices, totals, metrics };
+}
+
+export async function getPlatformHealthNotices(): Promise<PlatformNotice[]> {
+  const supportTicketModel = (prisma as unknown as {
+    supportTicket?: { count: (args: { where: { status: { notIn: string[] } } }) => Promise<number> };
+  }).supportTicket;
+  const [stores, unresolvedSupportTickets] = await Promise.all([
+    prisma.store.findMany({
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        name: true,
+        isActive: true,
+        createdAt: true,
+        subscriptions: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { status: true, currentPeriodEnd: true, trialEndsAt: true },
+        },
+      },
+    }),
+    supportTicketModel?.count({ where: { status: { notIn: ["RESOLVED", "CLOSED"] } } }) ?? Promise.resolve(0),
+  ]);
+  const now = new Date();
+  const summaries = stores.map((store) => {
+    const subscription = store.subscriptions[0];
+    const status = subscription && subscription.currentPeriodEnd < now && subscription.status !== "CANCELED"
+      ? "EXPIRED"
+      : subscription?.status ?? "TRIALING";
+    return {
+      id: store.id,
+      name: store.name,
+      isActive: store.isActive,
+      createdAt: store.createdAt,
+      status,
+      trialEndsAt: subscription?.trialEndsAt ?? null,
+    };
+  });
+  return buildPlatformNotices(summaries, unresolvedSupportTickets, now);
 }

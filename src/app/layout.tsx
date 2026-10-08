@@ -56,6 +56,8 @@ const themeBootstrap = `
     var theme = stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
     var dark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
     document.documentElement.classList.toggle("dark", dark);
+    var palette = localStorage.getItem("mypos.palette");
+    document.documentElement.dataset.palette = ["berry", "tangerine", "teal", "marigold", "green"].includes(palette) ? palette : "teal";
   } catch (error) {}
 `;
 

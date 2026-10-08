@@ -6,6 +6,7 @@ import { nextShortNumber } from "@/lib/services/numbering.service";
 import { generateBusinessId, generateBranchCode } from "@/lib/services/id-registry";
 import { registrationSchema } from "@/lib/validations/registration.schema";
 import { createStoreActivationCode, createStoreActivationLinkToken, sendStoreActivationEmail } from "@/lib/services/store-activation.service";
+import { notifySuperAdmins } from "@/lib/services/super-admin-alerts.service";
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
     const now = new Date();
     const trialEndsAt = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
 
-    const owner = await prisma.$transaction(async (tx) => {
+    const registration = await prisma.$transaction(async (tx) => {
       const existing = await tx.user.findUnique({ where: { email: ownerEmail }, select: { id: true } });
       if (existing) throw ApiError.conflict("An account with this email already exists");
 
@@ -69,7 +70,7 @@ export async function POST(request: NextRequest) {
         ],
       });
       const staffCode = await nextShortNumber(tx, store.id, "STAFF_ADMIN", "ADM");
-      return tx.user.create({
+      const owner = await tx.user.create({
         data: {
           storeId: store.id,
           staffCode,
@@ -83,7 +84,9 @@ export async function POST(request: NextRequest) {
         },
         select: { id: true, fullName: true, email: true, storeId: true },
       });
+      return { owner, businessId: store.businessId };
     });
+    const { owner } = registration;
 
     after(async () => {
       try {
@@ -97,6 +100,18 @@ export async function POST(request: NextRequest) {
       } catch (error) {
         console.error("[activation] failed to send shop activation email", error);
       }
+      await notifySuperAdmins({
+        subject: "New business registered on VidyPOS",
+        text: `${input.businessName} has registered and is awaiting email activation.`,
+        details: [
+          { label: "Business", value: input.businessName },
+          { label: "Business ID", value: registration.businessId ?? registration.owner.storeId ?? "Not assigned" },
+          { label: "Owner", value: owner.fullName },
+          { label: "Owner email", value: owner.email ?? ownerEmail },
+          { label: "Plan", value: input.plan },
+          { label: "Registered", value: new Date().toISOString() },
+        ],
+      });
     });
     return ok({ fullName: owner.fullName, email: owner.email, storeId: owner.storeId, activationRequired: true }, undefined, 201);
   } catch (error) {

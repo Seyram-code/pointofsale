@@ -1,4 +1,4 @@
-import type { NextRequest } from "next/server";
+import { after, type NextRequest } from "next/server";
 import { ForbiddenError, UnauthorizedError } from "@/lib/auth/guard";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
@@ -8,6 +8,7 @@ import { nextShortNumber } from "@/lib/services/numbering.service";
 import { generateBusinessId, generateBranchCode } from "@/lib/services/id-registry";
 import { registrationSchema } from "@/lib/validations/registration.schema";
 import { createStoreActivationCode, createStoreActivationLinkToken, sendStoreActivationEmail } from "@/lib/services/store-activation.service";
+import { notifySuperAdmins } from "@/lib/services/super-admin-alerts.service";
 
 export async function POST(request: NextRequest) {
   try {
@@ -106,17 +107,32 @@ export async function POST(request: NextRequest) {
       return { ...store, owner };
     });
 
-    try {
-      await sendStoreActivationEmail({
-        email: ownerEmail,
-        businessName: registered.name,
-        code: activation.code,
-        linkToken: activationLink.token,
-        appUrl: new URL(request.url).origin,
+    after(async () => {
+      try {
+        await sendStoreActivationEmail({
+          email: ownerEmail,
+          businessName: registered.name,
+          code: activation.code,
+          linkToken: activationLink.token,
+          appUrl: new URL(request.url).origin,
+        });
+      } catch (error) {
+        console.error("[activation] failed to send shop activation email", error);
+      }
+      await notifySuperAdmins({
+        subject: "New business registered on VidyPOS",
+        text: `${registered.name} has been registered by a Super Admin and is awaiting email activation.`,
+        details: [
+          { label: "Business", value: registered.name },
+          { label: "Business ID", value: registered.businessId ?? registered.id },
+          { label: "Owner", value: registered.owner.fullName },
+          { label: "Owner email", value: registered.owner.email ?? ownerEmail },
+          { label: "Plan", value: input.plan },
+          { label: "Registered by", value: session.user.fullName },
+          { label: "Registered", value: new Date().toISOString() },
+        ],
       });
-    } catch (error) {
-      console.error("[activation] failed to send shop activation email", error);
-    }
+    });
 
     return ok(registered, undefined, 201);
   } catch (error) {
