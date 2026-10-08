@@ -147,6 +147,7 @@ export function PlatformOwnerDashboard({ overview }: { overview: PlatformOvervie
                   <th className="px-3 py-2 font-medium">Business</th>
                   <th className="px-3 py-2 font-medium">Plan</th>
                   <th className="px-3 py-2 font-medium">Status</th>
+                  <th className="px-3 py-2 font-medium">Email verification</th>
                   <th className="px-3 py-2 font-medium">Users</th>
                   <th className="px-3 py-2 font-medium">Branches</th>
                   <th className="px-3 py-2 font-medium">MRR</th>
@@ -166,6 +167,7 @@ export function PlatformOwnerDashboard({ overview }: { overview: PlatformOvervie
                     <td className="px-3 py-3">
                       <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${statusTone[store.status ?? "ACTIVE"] ?? "bg-slate-500/15 text-slate-700"}`}>{store.status ?? "ACTIVE"}</span>
                     </td>
+                    <td className="px-3 py-3 text-fg-secondary">{store.emailVerifiedAt ? "Verified" : "Pending"}</td>
                     <td className="px-3 py-3 text-fg-secondary">{store.staffCount}</td>
                     <td className="px-3 py-3 text-fg-secondary">{store.branches}</td>
                     <td className="px-3 py-3 text-fg-secondary">GHS {store.monthlyPrice}</td>

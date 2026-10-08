@@ -207,6 +207,7 @@ export default async function PlatformMetricPage({ params }: { params: Promise<{
                         <th className="px-6 py-3 font-medium">Email</th>
                         <th className="px-6 py-3 font-medium">Plan</th>
                         <th className="px-6 py-3 font-medium">Status</th>
+                        <th className="px-6 py-3 font-medium">Email verification</th>
                         <th className="px-6 py-3 font-medium">Subscription date</th>
                         <th className="px-6 py-3 font-medium">Next subscription</th>
                         <th className="px-6 py-3 font-medium">Users</th>
@@ -249,6 +250,7 @@ export default async function PlatformMetricPage({ params }: { params: Promise<{
                           <td className="px-6 py-3 text-fg-secondary">{store.email ?? "—"}</td>
                           <td className="px-6 py-3 text-fg-secondary">{store.plan ?? "TRIAL"}</td>
                           <td className="px-6 py-3 text-fg-secondary">{store.status ?? "TRIALING"}</td>
+                          <td className="px-6 py-3 text-fg-secondary">{store.emailVerifiedAt ? "Verified" : "Pending"}</td>
                           <td className="px-6 py-3 text-fg-secondary">{store.subscriptionStart?.toLocaleDateString("en-GB") ?? "—"}</td>
                           <td className="px-6 py-3 text-fg-secondary">{store.currentPeriodEnd?.toLocaleDateString("en-GB") ?? "—"}</td>
                           <td className="px-6 py-3 text-fg-secondary">{store.staffCount}</td>

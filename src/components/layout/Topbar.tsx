@@ -87,7 +87,28 @@ export function Topbar({ onOpenMenu, restricted = false }: { onOpenMenu: () => v
         {theme === "dark" ? <Sun className="size-5" /> : <Moon className="size-5" />}
       </button>
 
-      <div className="relative">
+      <div className="hidden items-center gap-2 px-1 sm:flex" role="radiogroup" aria-label="Choose system color">
+        {COLOR_PALETTES.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            role="radio"
+            aria-label={`${option.name} ${option.color}`}
+            aria-checked={palette === option.id}
+            title={`${option.name} ${option.color}`}
+            onClick={() => setPalette(option.id)}
+            className="flex size-8 shrink-0 items-center justify-center rounded-full transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2 aria-checked:ring-2 aria-checked:ring-brand-600 aria-checked:ring-offset-2"
+          >
+            <span
+              aria-hidden="true"
+              className="size-5 rounded-full border border-black/15 shadow-sm"
+              style={{ backgroundColor: option.color }}
+            />
+          </button>
+        ))}
+      </div>
+
+      <div className="relative sm:hidden">
         <button
           type="button"
           onClick={() => setPaletteOpen((open) => !open)}
@@ -109,28 +130,28 @@ export function Topbar({ onOpenMenu, restricted = false }: { onOpenMenu: () => v
             <div
               role="dialog"
               aria-label="Color palette"
-              className="absolute right-0 z-20 mt-2 w-64 rounded-xl border border-line bg-card p-4 shadow-[var(--shadow-panel)]"
+              className="absolute right-0 z-20 mt-2 flex items-center gap-3 whitespace-nowrap p-2"
             >
-              <p className="text-sm font-semibold text-fg">System color</p>
-              <div className="mt-3 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Choose system color">
+              <div className="flex items-center gap-3" role="radiogroup" aria-label="Choose system color">
                 {COLOR_PALETTES.map((option) => (
                   <button
                     key={option.id}
                     type="button"
                     role="radio"
+                    aria-label={`${option.name} ${option.color}`}
                     aria-checked={palette === option.id}
-                    onClick={() => setPalette(option.id)}
-                    className="flex items-center gap-2 rounded-lg border border-line px-2.5 py-2 text-left text-xs font-medium text-fg-secondary hover:bg-muted aria-checked:border-brand-600 aria-checked:text-fg"
+                    title={`${option.name} ${option.color}`}
+                    onClick={() => {
+                      setPalette(option.id);
+                      setPaletteOpen(false);
+                    }}
+                    className="flex size-8 shrink-0 items-center justify-center rounded-full transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2 aria-checked:ring-2 aria-checked:ring-brand-600 aria-checked:ring-offset-2"
                   >
                     <span
                       aria-hidden="true"
-                      className="size-5 shrink-0 rounded-full border border-black/10"
+                      className="size-6 rounded-full border border-black/15 shadow-sm"
                       style={{ backgroundColor: option.color }}
                     />
-                    <span className="min-w-0">
-                      <span className="block">{option.name}</span>
-                      <span className="block font-mono text-[10px] text-fg-muted">{option.color}</span>
-                    </span>
                   </button>
                 ))}
               </div>

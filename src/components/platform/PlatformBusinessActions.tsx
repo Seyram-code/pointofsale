@@ -25,6 +25,7 @@ export interface PlatformBusinessActionStore {
   region: string | null;
   currency: string;
   isActive: boolean;
+  emailVerifiedAt: Date | null;
   staffCount: number;
   branches: number;
   plan: string | null;
@@ -55,7 +56,12 @@ export function PlatformBusinessActions({ store }: { store: PlatformBusinessActi
       const payload = await response.json();
       if (!response.ok || !payload.success) throw new Error(payload.error?.message ?? "Business action failed");
 
-      success("Business updated", `${store.name} was ${action.replace("_", " ")} successfully.`);
+      success(
+        action === "activate" ? "Business activated" : "Business updated",
+        action === "activate"
+          ? `${store.name} was activated and its email was marked verified.`
+          : `${store.name} was ${action.replace("_", " ")} successfully.`,
+      );
       setPlanOpen(false);
       router.refresh();
     } catch (actionError) {
@@ -79,13 +85,13 @@ export function PlatformBusinessActions({ store }: { store: PlatformBusinessActi
         <Button type="button" size="sm" variant="outline" leftIcon={<Eye className="size-3.5" />} onClick={() => setViewOpen(true)}>
           View
         </Button>
-        {store.isActive ? (
+        {store.isActive && store.emailVerifiedAt ? (
           <Button type="button" size="sm" variant="outline" loading={loading === "suspend"} leftIcon={<PauseCircle className="size-3.5" />} onClick={() => requestAction("suspend")}>
             Suspend
           </Button>
         ) : (
           <Button type="button" size="sm" variant="success" loading={loading === "activate"} leftIcon={<PlayCircle className="size-3.5" />} onClick={() => requestAction("activate")}>
-            Activate
+            {store.emailVerifiedAt ? "Activate" : "Verify & activate"}
           </Button>
         )}
         <Button type="button" size="sm" variant="danger" loading={loading === "cancel"} leftIcon={<XCircle className="size-3.5" />} onClick={() => requestAction("cancel")}>
@@ -103,6 +109,7 @@ export function PlatformBusinessActions({ store }: { store: PlatformBusinessActi
             ["Business ID", store.businessId ?? "—"],
             ["Branch", store.branchCode],
             ["Status", store.isActive ? "Active" : "Suspended"],
+            ["Owner email verification", store.emailVerifiedAt ? "Verified" : "Pending"],
             ["Subscription", store.status ?? "—"],
             ["Plan", store.plan ?? "—"],
             ["Subscription date", store.subscriptionStart?.toLocaleDateString("en-GB") ?? "—"],

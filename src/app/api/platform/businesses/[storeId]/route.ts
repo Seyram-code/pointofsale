@@ -24,7 +24,10 @@ export async function POST(
     const input = actionSchema.parse(await request.json());
     if (input.action === "change_plan" && !input.plan) throw ApiError.badRequest("A subscription plan is required");
 
-    const store = await prisma.store.findUnique({ where: { id: storeId }, select: { id: true, name: true, isActive: true } });
+    const store = await prisma.store.findUnique({
+      where: { id: storeId },
+      select: { id: true, name: true, isActive: true, emailVerifiedAt: true },
+    });
     if (!store) throw ApiError.notFound("Business");
 
     const subscription = await prisma.storeSubscription.findFirst({
@@ -41,7 +44,7 @@ export async function POST(
     let periodEnd: Date | null = null;
     let trialEndsAt: Date | null | undefined;
 
-    const changes: Record<string, { from: string | boolean; to: string | boolean }> = {};
+    const changes: Record<string, { from: string | boolean | null; to: string | boolean | null }> = {};
     const data = {
       storeActive: store.isActive,
       subscriptionStatus: subscription.status,
@@ -52,6 +55,7 @@ export async function POST(
       data.storeActive = true;
       data.subscriptionStatus = subscription.status === "CANCELED" ? "ACTIVE" : subscription.status;
       changes.isActive = { from: store.isActive, to: true };
+      if (!store.emailVerifiedAt) changes.emailVerifiedAt = { from: null, to: true };
       if (subscription.status === "CANCELED") changes.status = { from: subscription.status, to: "ACTIVE" };
     } else if (input.action === "suspend") {
       data.storeActive = false;
@@ -87,7 +91,21 @@ export async function POST(
     }
 
     const updated = await prisma.$transaction(async (tx) => {
-      await tx.store.update({ where: { id: storeId }, data: { isActive: data.storeActive } });
+      await tx.store.update({
+        where: { id: storeId },
+        data: {
+          isActive: data.storeActive,
+          ...(input.action === "activate" ? {
+            emailVerifiedAt: store.emailVerifiedAt ?? now,
+            activationCodeHash: null,
+            activationCodeExpiresAt: null,
+            activationCodeSentAt: null,
+            activationCodeAttempts: 0,
+            activationLinkTokenHash: null,
+            activationLinkExpiresAt: null,
+          } : {}),
+        },
+      });
       const updatedSubscription = await tx.storeSubscription.update({
         where: { id: subscription.id },
         data: {

@@ -16,6 +16,7 @@ export interface PlatformStoreSummary {
   region: string | null;
   currency: string;
   isActive: boolean;
+  emailVerifiedAt: Date | null;
   createdAt: Date;
   staffCount: number;
   branches: number;
@@ -140,6 +141,7 @@ export async function getPlatformOverview(): Promise<PlatformOverview> {
       region: true,
       currency: true,
       isActive: true,
+      emailVerifiedAt: true,
       createdAt: true,
       _count: { select: { users: true } },
       users: {
@@ -190,6 +192,7 @@ export async function getPlatformOverview(): Promise<PlatformOverview> {
       region: store.region,
       currency: store.currency,
       isActive: store.isActive,
+      emailVerifiedAt: store.emailVerifiedAt,
       createdAt: store.createdAt,
       staffCount: store._count.users,
       branches: 1,
