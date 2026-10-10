@@ -13,13 +13,12 @@ import { useCurrentUser } from "@/components/providers/SessionProvider";
 interface ProductEditDialogProps {
   product: PosProduct | null;
   open: boolean;
-  canManageNonStock: boolean;
   isSalonSpa: boolean;
   onClose: () => void;
   onSaved: (product: PosProduct) => void;
 }
 
-export function ProductEditDialog({ product, open, canManageNonStock, isSalonSpa, onClose, onSaved }: ProductEditDialogProps) {
+export function ProductEditDialog({ product, open, isSalonSpa, onClose, onSaved }: ProductEditDialogProps) {
   const scannerEnabled = useCurrentUser().scannerOutsidePos;
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -72,21 +71,19 @@ export function ProductEditDialog({ product, open, canManageNonStock, isSalonSpa
               </button>
             ) : undefined}
           />
-          {canManageNonStock && (
-            <label className="flex items-start gap-3 rounded-lg border border-line p-3">
-              <input
-                type="checkbox"
-                checked={values.nonStock}
-                onChange={(event) => setValues({ ...values, nonStock: event.target.checked })}
-                className="mt-0.5 size-4 accent-brand-600"
-              />
-              <span>
-                <span className="block text-sm font-medium text-fg">{isSalonSpa ? "Salon service (no stock)" : "Non-stock service"}</span>
-                <span className="mt-0.5 block text-xs text-fg-muted">Stock is not deducted at checkout.</span>
-              </span>
-            </label>
-          )}
-          {canManageNonStock && product && !product.trackStock && !values.nonStock && (
+          <label className="flex items-start gap-3 rounded-lg border border-line p-3">
+            <input
+              type="checkbox"
+              checked={values.nonStock}
+              onChange={(event) => setValues({ ...values, nonStock: event.target.checked })}
+              className="mt-0.5 size-4 accent-brand-600"
+            />
+            <span>
+              <span className="block text-sm font-medium text-fg">{isSalonSpa ? "Salon service (no stock)" : "Non-stock service"}</span>
+              <span className="mt-0.5 block text-xs text-fg-muted">Stock is not deducted at checkout.</span>
+            </span>
+          </label>
+          {product && !product.trackStock && !values.nonStock && (
             <Input
               label="Opening quantity"
               type="number"

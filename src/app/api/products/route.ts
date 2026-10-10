@@ -60,9 +60,6 @@ export async function POST(request: NextRequest) {
     const enteredSku = typeof body.sku === "string" ? body.sku.trim() : "";
     const barcode = typeof body.barcode === "string" ? body.barcode.trim() : "";
     const nonStock = body.nonStock === true;
-    if (nonStock && !["OTHER", "RESTAURANT", "SALON_SPA"].includes(session.user.businessType ?? "")) {
-      return fail("FORBIDDEN", "Non-stock services are not available for this business type.", 403);
-    }
     const costPrice = nonStock ? 0 : Number(body.costPrice);
     const sellingPrice = Number(body.sellingPrice);
     const quantity = nonStock ? 0 : Number(body.quantity ?? 0);

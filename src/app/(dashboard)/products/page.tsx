@@ -16,5 +16,5 @@ export default async function ProductsPage() {
       ])
     : [[], []];
 
-  return <ProductCatalogue initialProducts={products} categories={categories} canEdit={user.permissions.includes(PERMISSIONS.PRODUCTS_UPDATE)} canDelete={user.permissions.includes(PERMISSIONS.PRODUCTS_DELETE)} canImport={user.permissions.includes(PERMISSIONS.PRODUCTS_CREATE)} canManageNonStock={user.businessType === "OTHER" || user.businessType === "RESTAURANT" || user.businessType === "SALON_SPA"} isSalonSpa={user.businessType === "SALON_SPA"} />;
+  return <ProductCatalogue initialProducts={products} categories={categories} canEdit={user.permissions.includes(PERMISSIONS.PRODUCTS_UPDATE)} canDelete={user.permissions.includes(PERMISSIONS.PRODUCTS_DELETE)} canImport={user.permissions.includes(PERMISSIONS.PRODUCTS_CREATE)} isSalonSpa={user.businessType === "SALON_SPA"} />;
 }

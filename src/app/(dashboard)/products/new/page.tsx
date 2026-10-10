@@ -12,7 +12,6 @@ export default async function NewProductPage() {
   const { user } = await requirePermission(PERMISSIONS.PRODUCTS_CREATE, "/products/new");
   const isRestaurant = user.businessType === "RESTAURANT";
   const isSalonSpa = user.businessType === "SALON_SPA";
-  const canCreateNonStock = isRestaurant || isSalonSpa || user.businessType === "OTHER";
   const itemLabel = isRestaurant ? "menu item" : isSalonSpa ? "service or product" : "product";
   const pageTitle = isRestaurant ? "Add menu item" : isSalonSpa ? "Add salon service or product" : "Add product";
   const description = isRestaurant
@@ -23,7 +22,7 @@ export default async function NewProductPage() {
   return (
     <>
       <PageHeader title={pageTitle} description={description} breadcrumbs={[{ label: isRestaurant ? "Menu items" : "Products", href: "/products" }, { label: `Add ${itemLabel}` }]} actions={<Link href="/products" className="inline-flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-medium text-fg-secondary hover:bg-muted"><ArrowLeft className="size-4" />Back to {isRestaurant ? "menu items" : "products"}</Link>} />
-      <ProductForm mode={isRestaurant ? "restaurant" : isSalonSpa ? "salon" : "retail"} canCreateNonStock={canCreateNonStock} />
+      <ProductForm mode={isRestaurant ? "restaurant" : isSalonSpa ? "salon" : "retail"} />
     </>
   );
 }

@@ -56,6 +56,7 @@ export async function listInventory(storeId: string, query: InventoryQuery) {
     where: {
       storeId,
       isActive: true,
+      trackStock: true,
       deletedAt: null,
       ...(query.categoryId ? { categoryId: query.categoryId } : {}),
       ...(term

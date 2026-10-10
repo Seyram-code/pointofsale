@@ -24,7 +24,6 @@ interface ProductCatalogueProps {
   canEdit: boolean;
   canDelete: boolean;
   canImport: boolean;
-  canManageNonStock: boolean;
   isSalonSpa: boolean;
 }
 
@@ -34,7 +33,7 @@ interface ProductImportResult {
   issues: Array<{ row: number; message: string }>;
 }
 
-export function ProductCatalogue({ initialProducts, categories, canEdit, canDelete, canImport, canManageNonStock, isSalonSpa }: ProductCatalogueProps) {
+export function ProductCatalogue({ initialProducts, categories, canEdit, canDelete, canImport, isSalonSpa }: ProductCatalogueProps) {
   const [products, setProducts] = useState(initialProducts);
   const [pagination, setPagination] = useState<PaginationMeta>({
     page: 1,
@@ -249,7 +248,7 @@ export function ProductCatalogue({ initialProducts, categories, canEdit, canDele
           {!loading && <Pagination meta={pagination} onPageChange={setPage} />}
         </CardContent>
       </Card>
-      <ProductEditDialog product={editingProduct} open={Boolean(editingProduct)} canManageNonStock={canManageNonStock} isSalonSpa={isSalonSpa} onClose={() => setEditingProduct(null)} onSaved={replaceProduct} />
+      <ProductEditDialog product={editingProduct} open={Boolean(editingProduct)} isSalonSpa={isSalonSpa} onClose={() => setEditingProduct(null)} onSaved={replaceProduct} />
       <ConfirmDialog open={Boolean(deletingProduct)} title="Delete product" message={`Delete ${deletingProduct?.name ?? "this product"}? It will be removed from the catalogue but retained in historical sales.`} confirmLabel="Delete product" destructive loading={deleting} onConfirm={deleteProduct} onCancel={() => setDeletingProduct(null)} />
     </>
   );

@@ -12,7 +12,7 @@ import { useToast } from "@/components/ui/Toast";
 import { DEFAULT_TAX_RATE } from "@/lib/config/constants";
 import { useCurrentUser } from "@/components/providers/SessionProvider";
 
-export function ProductForm({ mode = "retail", canCreateNonStock = false }: { mode?: "retail" | "restaurant" | "salon"; canCreateNonStock?: boolean }) {
+export function ProductForm({ mode = "retail" }: { mode?: "retail" | "restaurant" | "salon" }) {
   const isRestaurant = mode === "restaurant";
   const isSalon = mode === "salon";
   const [saving, setSaving] = useState(false);
@@ -104,20 +104,18 @@ export function ProductForm({ mode = "retail", canCreateNonStock = false }: { mo
               <p className="mt-1 text-xl font-semibold text-fg">GHS {finalPrice.toFixed(2)}</p>
               <p className="mt-0.5 text-xs text-fg-muted">{nonStock ? "Service fee plus tax" : "Selling price plus tax"}</p>
             </div>
-            {canCreateNonStock && (
-              <label className="flex items-start gap-3 rounded-lg border border-line p-3 sm:col-span-2">
-                <input
-                  type="checkbox"
-                  checked={nonStock}
-                  onChange={(event) => setNonStock(event.target.checked)}
-                  className="mt-0.5 size-4 accent-brand-600"
-                />
-                <span>
-                  <span className="block text-sm font-medium text-fg">Non-stock service</span>
-                  <span className="mt-0.5 block text-xs text-fg-muted">For services such as haircuts. Stock is not deducted at checkout.</span>
-                </span>
-              </label>
-            )}
+            <label className="flex items-start gap-3 rounded-lg border border-line p-3 sm:col-span-2">
+              <input
+                type="checkbox"
+                checked={nonStock}
+                onChange={(event) => setNonStock(event.target.checked)}
+                className="mt-0.5 size-4 accent-brand-600"
+              />
+              <span>
+                <span className="block text-sm font-medium text-fg">Non-stock service</span>
+                <span className="mt-0.5 block text-xs text-fg-muted">For services such as haircuts. Stock is not deducted at checkout.</span>
+              </span>
+            </label>
             {!nonStock && <Input label={isRestaurant ? "Opening stock" : "Opening quantity"} name="quantity" type="number" min="0" step="0.001" required placeholder="0" />}
             {!nonStock && <Input label={isRestaurant ? "Use-by date" : "Expiry date"} name="expiryDate" type="date" hint={isRestaurant ? "Optional for ingredients or prepared items" : "Optional for products with an expiry date"} />}
           </CardContent>

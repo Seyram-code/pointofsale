@@ -22,10 +22,6 @@ export async function PATCH(request: NextRequest, { params }: Context) {
     const costPrice = nonStock ? 0 : Number(body.costPrice);
     const sellingPrice = Number(body.sellingPrice);
     const openingQuantity = Number(body.quantity ?? 0);
-    const canManageNonStock = ["OTHER", "RESTAURANT", "SALON_SPA"].includes(session.user.businessType ?? "");
-    if (nonStock && !canManageNonStock) {
-      throw new ApiError("FORBIDDEN", "Non-stock services are not available for this business type.", 403);
-    }
     if (!name || !sku || !Number.isFinite(costPrice) || !Number.isFinite(sellingPrice) || costPrice < 0 || sellingPrice < 0 || !Number.isFinite(openingQuantity) || openingQuantity < 0) throw ApiError.badRequest("Name, SKU, valid prices and a valid quantity are required");
 
     if (barcode) {
@@ -49,8 +45,8 @@ export async function PATCH(request: NextRequest, { params }: Context) {
     await prisma.$transaction(async (tx) => {
       const product = await tx.product.findFirst({ where: { id, storeId, deletedAt: null }, select: { id: true, trackStock: true } });
       if (!product) throw ApiError.notFound("Product");
-      await tx.product.update({ where: { id }, data: { name, sku, costPrice, sellingPrice, ...(canManageNonStock ? { trackStock: !nonStock, type: nonStock ? "SERVICE" : "UNIT" } : {}) } });
-      if (canManageNonStock && !product.trackStock && !nonStock) {
+      await tx.product.update({ where: { id }, data: { name, sku, costPrice, sellingPrice, trackStock: !nonStock, type: nonStock ? "SERVICE" : "UNIT" } });
+      if (!product.trackStock && !nonStock) {
         await tx.inventoryLevel.upsert({
           where: { storeId_productId: { storeId, productId: id } },
           create: { storeId, productId: id, quantity: DECIMAL_QTY(openingQuantity), averageCost: DECIMAL_MONEY(costPrice) },
