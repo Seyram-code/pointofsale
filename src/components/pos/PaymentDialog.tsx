@@ -40,6 +40,7 @@ function ReceiptBarcode({ receipt }: { receipt: NonNullable<CheckoutResponse["re
       ...(receipt.store.tinNumber ? [`TIN: ${receipt.store.tinNumber}`] : []),
       ...(receipt.store.vatNumber ? [`VAT: ${receipt.store.vatNumber}`] : []),
       `Cashier: ${receipt.cashier}`,
+      ...(receipt.orderType ? [`Order Type: ${receipt.orderType === "DINE_IN" ? "Dine in" : receipt.orderType === "TAKEAWAY" ? "Takeaway" : "Delivery"}`, ...(receipt.tableNumber ? [`Table: ${receipt.tableNumber}`] : [])] : []),
       ...(receipt.customer ? [`Customer: ${receipt.customer.name}`, ...(receipt.customer.phone ? [`Customer phone: ${receipt.customer.phone}`] : [])] : []),
       "",
       "ITEMS",
@@ -86,7 +87,7 @@ export interface CheckoutResponse {
   total: number;
   amountPaid: number;
   changeDue: number;
-  orderItems?: Array<{ productId: string; sku: string; quantity: number }>;
+  orderItems?: Array<{ productId: string; sku: string; quantity: number; optionIds: string[]; selectedOptions: Array<{ id: string; name: string; priceDelta: number }> }>;
   payments: Array<{ method: string; state: string; message?: string; authorizationUrl?: string; failureReason?: string }>;
   receipt: {
     receiptNumber: string;
@@ -94,6 +95,8 @@ export interface CheckoutResponse {
     store: { name: string; branchCode: string; addressLine: string | null; city: string | null; phone: string | null; tinNumber: string | null; vatNumber: string | null; footer: string | null };
     cashier: string;
     customer: { name: string; phone: string | null } | null;
+    orderType: string | null;
+    tableNumber: string | null;
     currency: string;
     items: Array<{ name: string; sku: string; quantity: number; unitPrice: number; lineTotal: number; taxAmount: number }>;
     totals: { subtotal: number; discount: number; tax: number; total: number; amountPaid: number; changeDue: number };
@@ -113,7 +116,7 @@ export interface PaymentDialogProps {
   onSubmit: (payments: CheckoutPaymentInput[]) => Promise<CheckoutResponse>;
   onCompleted: () => void;
   onReturnHandled: () => void;
-  onRestoreOrder: (items: Array<{ productId: string; sku: string; quantity: number }>) => Promise<void>;
+  onRestoreOrder: (items: NonNullable<CheckoutResponse["orderItems"]>) => Promise<void>;
   onFinish: () => void;
 }
 
@@ -137,8 +140,6 @@ export function PaymentDialog({
   const [tendered, setTendered] = useState("");
   const [momoNetwork, setMomoNetwork] = useState<"MTN" | "VODAFONE" | "AIRTELTIGO">("MTN");
   const [momoPhone, setMomoPhone] = useState("");
-  const [momoEmail, setMomoEmail] = useState("");
-  const [cardEmail, setCardEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CheckoutResponse | null>(null);
@@ -157,8 +158,6 @@ export function PaymentDialog({
     setMethod("CASH");
     setTendered("");
     setMomoPhone("");
-    setMomoEmail(defaultEmail);
-    setCardEmail(defaultEmail);
     setError(null);
     setResult(null);
   }, [defaultEmail, open]);
@@ -238,9 +237,9 @@ export function PaymentDialog({
     (method === "CASH"
       ? tenderedAmount + 0.001 >= total
       : method === "MOMO"
-        ? momoPhone.trim().length > 0 && (mockMomoDriver || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(momoEmail.trim()))
+        ? momoPhone.trim().length > 0 && (mockMomoDriver || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(defaultEmail.trim()))
         : method === "CARD" && !mockCardDriver
-          ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cardEmail.trim())
+          ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(defaultEmail.trim())
           : true);
 
   async function confirm() {
@@ -250,12 +249,8 @@ export function PaymentDialog({
       setError("Enter a valid Ghanaian mobile number, e.g. 024 123 4567");
       return;
     }
-    if (method === "MOMO" && !mockMomoDriver && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(momoEmail.trim())) {
-      setError("Enter a valid customer email for Paystack mobile-money checkout");
-      return;
-    }
-    if (method === "CARD" && !mockCardDriver && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cardEmail.trim())) {
-      setError("Enter a valid customer email for Paystack checkout");
+    if ((method === "MOMO" && !mockMomoDriver || method === "CARD" && !mockCardDriver) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(defaultEmail.trim())) {
+      setError("A valid store email is required for Paystack checkout");
       return;
     }
 
@@ -269,10 +264,10 @@ export function PaymentDialog({
           ? {
               momoNetwork,
               momoPhone: normalizeGhanaPhone(momoPhone) ?? momoPhone,
-              ...(!mockMomoDriver ? { momoEmail: momoEmail.trim() } : {}),
+              ...(!mockMomoDriver ? { momoEmail: defaultEmail.trim() } : {}),
             }
           : {}),
-        ...(method === "CARD" && !mockCardDriver ? { cardEmail: cardEmail.trim() } : {}),
+        ...(method === "CARD" && !mockCardDriver ? { cardEmail: defaultEmail.trim() } : {}),
       };
 
       const response = await onSubmit([payment]);
@@ -350,6 +345,7 @@ export function PaymentDialog({
                   <p className="mt-2 font-semibold">Receipt: {receipt.receiptNumber || result.receiptNumber}</p>
                   <p>{new Date(receipt.issuedAt).toLocaleString()}</p>
                   <p>Cashier: {receipt.cashier}</p>
+                  {receipt.orderType && <p>Order Type: {receipt.orderType === "DINE_IN" ? "Dine in" : receipt.orderType === "TAKEAWAY" ? "Takeaway" : "Delivery"}{receipt.orderType === "DINE_IN" ? ` · Table ${receipt.tableNumber ?? "—"}` : ""}</p>}
                 </div>
                 <p className="mb-2 font-semibold text-fg">Items purchased</p>
                 <div className="space-y-2">
@@ -571,17 +567,6 @@ export function PaymentDialog({
             value={momoPhone}
             onChange={(event) => setMomoPhone(event.target.value)}
           />
-          {!mockMomoDriver && (
-            <Input
-              type="email"
-              autoComplete="email"
-              label="Customer email"
-              placeholder="name@example.com"
-              value={momoEmail}
-              onChange={(event) => setMomoEmail(event.target.value)}
-              required
-            />
-          )}
         </div>
       )}
 
@@ -594,18 +579,6 @@ export function PaymentDialog({
 
       {method === "CARD" && (
         <div className="mt-4 space-y-3">
-          {!mockCardDriver && (
-            <Input
-              autoFocus
-              type="email"
-              autoComplete="email"
-              label="Customer email"
-              placeholder="name@example.com"
-              value={cardEmail}
-              onChange={(event) => setCardEmail(event.target.value)}
-              required
-            />
-          )}
           <p className="rounded-lg bg-muted p-3 text-sm text-fg-secondary">
             The customer completes payment on Paystack. Card details are entered there and never stored by this system.
           </p>

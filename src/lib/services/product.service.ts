@@ -18,6 +18,7 @@ export interface PosProduct {
   stock: number;
   trackStock: boolean;
   barcode: string | null;
+  menuOptions?: Array<{ id: string; name: string; priceDelta: number }>;
 }
 
 const productSelect = {
@@ -87,7 +88,25 @@ export async function searchProducts(
     take: options.limit,
   }), prisma.taxRate.findFirst({ where: { storeId, isDefault: true, isActive: true }, select: { rate: true } })]);
 
-  return rows.map((row) => toPosProduct(row, defaultTaxRate ? Number(defaultTaxRate.rate) : 0));
+  const optionRows = rows.length > 0
+    ? await prisma.$queryRaw<Array<{ id: string; productId: string; name: string; priceDelta: Prisma.Decimal }>>(Prisma.sql`
+        SELECT mo.id, mo.productId, mo.name, mo.priceDelta
+        FROM MenuOption mo INNER JOIN Product p ON p.id = mo.productId
+        WHERE p.storeId = ${storeId} AND mo.isActive = 1 AND mo.productId IN (${Prisma.join(rows.map((row) => row.id))})
+        ORDER BY mo.sortOrder ASC, mo.name ASC
+      `)
+    : [];
+  const optionsByProduct = new Map<string, NonNullable<PosProduct["menuOptions"]>>();
+  for (const option of optionRows) {
+    const options = optionsByProduct.get(option.productId) ?? [];
+    options.push({ id: option.id, name: option.name, priceDelta: Number(option.priceDelta) });
+    optionsByProduct.set(option.productId, options);
+  }
+
+  return rows.map((row) => ({
+    ...toPosProduct(row, defaultTaxRate ? Number(defaultTaxRate.rate) : 0),
+    menuOptions: optionsByProduct.get(row.id) ?? [],
+  }));
 }
 
 export async function searchCatalogueProducts(

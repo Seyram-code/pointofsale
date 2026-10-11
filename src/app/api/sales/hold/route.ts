@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
       storeId: session.user.storeId,
       cashierId: session.user.id,
       allowPriceOverride: session.user.permissions.includes(PERMISSIONS.POS_PRICE_OVERRIDE),
+      businessType: session.user.businessType ?? undefined,
     });
 
     await recordAudit({

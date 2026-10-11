@@ -15,6 +15,7 @@ import { CustomerPicker } from "@/components/pos/CustomerPicker";
 import { DiscountDialog } from "@/components/pos/DiscountDialog";
 import { HeldSalesDialog } from "@/components/pos/HeldSalesDialog";
 import { PaymentDialog, type CheckoutPaymentInput, type CheckoutResponse } from "@/components/pos/PaymentDialog";
+import { MenuOptionsDialog, type MenuOptionChoice } from "@/components/pos/MenuOptionsDialog";
 import { CameraBarcodeScanner } from "@/components/pos/CameraBarcodeScanner";
 import { useCart, type CartLine } from "@/hooks/useCart";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
@@ -24,6 +25,7 @@ import { getPlanFeatureStatus } from "@/lib/config/platform-features";
 import { api, ApiClientError, buildQuery } from "@/lib/api/client";
 import type { PosProduct } from "@/lib/services/product.service";
 import type { PaymentMethod } from "@/lib/payments/types";
+import type { RestaurantOrderType } from "@/lib/validations/sale.schema";
 
 export interface PosCategory {
   id: string;
@@ -39,8 +41,11 @@ interface HeldSaleDetail {
   id: string;
   discount: { type: "PERCENTAGE" | "FIXED_AMOUNT"; value: number } | null;
   customer: { id: string; fullName: string; phone: string | null } | null;
+  orderType: RestaurantOrderType | null;
+  tableNumber: string | null;
   items: Array<{
     productId: string;
+    lineId: string;
     name: string;
     sku: string;
     barcode: string | null;
@@ -49,6 +54,8 @@ interface HeldSaleDetail {
     taxRate: number;
     isVatInclusive: boolean;
     unitAbbreviation: string | null;
+    optionIds: string[];
+    selectedOptions: MenuOptionChoice[];
   }>;
 }
 
@@ -59,12 +66,15 @@ export interface PosTerminalProps {
   mockCardDriver: boolean;
   mockMomoDriver: boolean;
   storeEmail: string;
+  isRestaurant: boolean;
 }
 
 interface OfflineDraftPayload {
   id: string;
   customerId: string | null;
   note: string | null;
+  orderType: RestaurantOrderType | null;
+  tableNumber: string | null;
   items: Array<{ productId: string; quantity: number; unitPrice: number }>;
   createdAt: string;
 }
@@ -80,7 +90,7 @@ const SHORTCUTS = [
   ["F8", "Checkout"],
 ] as const;
 
-export function PosTerminal({ categories, permissions, paymentMethods, mockCardDriver, mockMomoDriver, storeEmail }: PosTerminalProps) {
+export function PosTerminal({ categories, permissions, paymentMethods, mockCardDriver, mockMomoDriver, storeEmail, isRestaurant }: PosTerminalProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const toast = useToast();
@@ -102,6 +112,10 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockCardD
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [orderType, setOrderType] = useState<RestaurantOrderType>("TAKEAWAY");
+  const [tableNumber, setTableNumber] = useState("");
+  const [pendingOptionsProduct, setPendingOptionsProduct] = useState<PosProduct | null>(null);
+  const [pendingMenuOptions, setPendingMenuOptions] = useState<MenuOptionChoice[]>([]);
 
   const [cartOpen, setCartOpen] = useState(false);
   const [customerOpen, setCustomerOpen] = useState(false);
@@ -143,10 +157,16 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockCardD
       return;
     }
     if (cart.lines.length === 0) return;
+    if (cart.lines.some((line) => line.optionIds.length > 0)) {
+      toast.error("Menu add-ons need a connection", "Connect to the internet before saving this order offline.");
+      return;
+    }
     const draft: OfflineDraftPayload = {
       id: crypto.randomUUID(),
       customerId: cart.customer?.id ?? null,
       note: cart.note || null,
+      orderType: isRestaurant ? orderType : null,
+      tableNumber: isRestaurant && orderType === "DINE_IN" ? tableNumber.trim() : null,
       items: cart.lines.map((line) => ({ productId: line.productId, quantity: line.quantity, unitPrice: line.unitPrice })),
       createdAt: new Date().toISOString(),
     };
@@ -154,7 +174,7 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockCardD
     cart.clear();
     setCheckoutOpen(false);
     toast.success("Sale saved offline", "It will sync when the connection returns.");
-  }, [cart, offlineEnabled, readOfflineDrafts, toast, writeOfflineDrafts]);
+  }, [cart, isRestaurant, offlineEnabled, orderType, readOfflineDrafts, tableNumber, toast, writeOfflineDrafts]);
 
   const syncOfflineDrafts = useCallback(async () => {
     if (!offlineEnabled || !navigator.onLine) return;
@@ -215,39 +235,58 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockCardD
   }, [loadProducts]);
 
   const toCartLine = useCallback(
-    (product: PosProduct): Omit<CartLine, "quantity"> => ({
+    (product: PosProduct, selectedOptions: MenuOptionChoice[] = []): Omit<CartLine, "quantity"> => ({
+      lineId: `${product.id}:${selectedOptions.map((option) => option.id).sort().join(",")}`,
       productId: product.id,
       name: product.name,
       sku: product.sku,
       barcode: product.barcode,
-      unitPrice: product.unitPrice,
-      originalPrice: product.unitPrice,
+      unitPrice: product.unitPrice + selectedOptions.reduce((sum, option) => sum + option.priceDelta, 0),
+      originalPrice: product.unitPrice + selectedOptions.reduce((sum, option) => sum + option.priceDelta, 0),
       taxRate: product.taxRate,
       isVatInclusive: product.isVatInclusive,
       unitAbbreviation: product.unitAbbreviation,
       stock: product.stock,
       trackStock: product.trackStock,
+      optionIds: selectedOptions.map((option) => option.id),
+      selectedOptions,
     }),
     [],
   );
 
-  const addProduct = useCallback(
-    (product: PosProduct) => {
+  const addProductWithOptions = useCallback(
+    (product: PosProduct, selectedOptions: MenuOptionChoice[] = []) => {
       if (product.trackStock && product.stock <= 0) {
         toast.error("Out of stock", `${product.name} cannot be added to the cart.`);
         return;
       }
-      const existingQuantity = cart.lines.find((line) => line.productId === product.id)?.quantity ?? 0;
+      const existingQuantity = cart.lines.filter((line) => line.productId === product.id).reduce((sum, line) => sum + line.quantity, 0);
       if (product.trackStock && existingQuantity >= product.stock) {
         toast.error("Stock limit reached", `Only ${product.stock} ${product.unitAbbreviation ?? "unit(s)"} of ${product.name} available.`);
         return;
       }
 
-      cart.addLine(toCartLine(product));
-      setSelectedProductId(product.id);
+      const line = toCartLine(product, selectedOptions);
+      cart.addLine(line);
+      setSelectedProductId(line.lineId);
     },
     [cart, toast, toCartLine],
   );
+
+  const addProduct = useCallback(async (product: PosProduct) => {
+    if (product.trackStock && product.stock <= 0) {
+      toast.error("Out of stock", `${product.name} cannot be added to the cart.`);
+      return;
+    }
+    if (isRestaurant) {
+      if (product.menuOptions && product.menuOptions.length > 0) {
+          setPendingMenuOptions(product.menuOptions);
+          setPendingOptionsProduct(product);
+          return;
+      }
+    }
+    addProductWithOptions(product);
+  }, [addProductWithOptions, isRestaurant, toast]);
 
   const scanBarcode = useCallback(
     async (code: string) => {
@@ -290,8 +329,9 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockCardD
     setBusy(true);
     try {
       await api.post("/sales/hold", {
-        items: cart.lines.map((line) => ({ productId: line.productId, quantity: line.quantity })),
+        items: cart.lines.map((line) => ({ productId: line.productId, quantity: line.quantity, optionIds: line.optionIds })),
         customerId: cart.customer?.id ?? null,
+        ...(isRestaurant ? { orderType, tableNumber: orderType === "DINE_IN" ? tableNumber : undefined } : {}),
         discount: cart.discount ?? undefined,
         note: cart.note || undefined,
         resumeSaleId: cart.resumedSaleId ?? undefined,
@@ -304,7 +344,7 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockCardD
       setBusy(false);
       barcodeRef.current?.focus();
     }
-  }, [cart, permissions.canHold, toast]);
+  }, [cart, isRestaurant, orderType, permissions.canHold, tableNumber, toast]);
 
   const resumeSale = useCallback(
     async (saleId: string) => {
@@ -313,6 +353,7 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockCardD
         const draft = await api.get<HeldSaleDetail>(`/sales/held/${saleId}`);
         cart.setLines(
           draft.items.map((item) => ({
+            lineId: item.lineId,
             productId: item.productId,
             name: item.name,
             sku: item.sku,
@@ -325,10 +366,14 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockCardD
             unitAbbreviation: item.unitAbbreviation,
             stock: Number.POSITIVE_INFINITY,
             trackStock: false,
+            optionIds: item.optionIds,
+            selectedOptions: item.selectedOptions,
           })),
         );
         cart.setCustomer(draft.customer);
         cart.setDiscount(draft.discount);
+        setOrderType(draft.orderType ?? "TAKEAWAY");
+        setTableNumber(draft.tableNumber ?? "");
         cart.setResumedSaleId(draft.id);
         toast.success("Sale resumed");
       } catch (error) {
@@ -344,8 +389,9 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockCardD
     async (payments: CheckoutPaymentInput[]): Promise<CheckoutResponse> => {
       try {
         return await api.post<CheckoutResponse>("/payments/checkout", {
-          items: cart.lines.map((line) => ({ productId: line.productId, quantity: line.quantity })),
+          items: cart.lines.map((line) => ({ productId: line.productId, quantity: line.quantity, optionIds: line.optionIds })),
           customerId: cart.customer?.id ?? null,
+          ...(isRestaurant ? { orderType, tableNumber: orderType === "DINE_IN" ? tableNumber : undefined } : {}),
           discount: cart.discount ?? undefined,
           note: cart.note || undefined,
           payments,
@@ -359,7 +405,7 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockCardD
         throw error;
       }
     },
-    [cart, offlineEnabled, saveOfflineDraft, toast],
+    [cart, isRestaurant, offlineEnabled, orderType, saveOfflineDraft, tableNumber, toast],
   );
 
   const finishSale = useCallback(() => {
@@ -379,7 +425,7 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockCardD
     void loadProducts();
   }, [loadProducts]);
 
-  const restoreFailedOrder = useCallback(async (items: Array<{ productId: string; sku: string; quantity: number }>) => {
+  const restoreFailedOrder = useCallback(async (items: NonNullable<CheckoutResponse["orderItems"]>) => {
     const productsForOrder = await Promise.all(items.map(async (item) => {
       const matches = await api.get<PosProduct[]>(`/products/search${buildQuery({ q: item.sku, limit: 1 })}`);
       const product = matches.find((entry) => entry.id === item.productId);
@@ -387,17 +433,20 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockCardD
       if (product.trackStock && product.stock < item.quantity) {
         throw new Error(`Only ${product.stock} unit(s) of ${product.name} are available now.`);
       }
-      return { product, quantity: item.quantity };
+      const availableOptions = isRestaurant ? product.menuOptions ?? [] : [];
+      const selectedOptions = availableOptions.filter((option) => item.optionIds.includes(option.id));
+      if (selectedOptions.length !== item.optionIds.length) throw new Error(`Some add-ons for ${product.name} are no longer available.`);
+      return { product, quantity: item.quantity, selectedOptions };
     }));
 
-    cart.setLines(productsForOrder.map(({ product, quantity }) => ({
-      ...toCartLine(product),
+    cart.setLines(productsForOrder.map(({ product, quantity, selectedOptions }) => ({
+      ...toCartLine(product, selectedOptions),
       quantity,
     })));
     setCheckoutOpen(false);
     setCartOpen(false);
     if (returnSaleId) router.replace("/pos");
-  }, [cart, returnSaleId, router, toCartLine]);
+  }, [cart, isRestaurant, returnSaleId, router, toCartLine]);
 
   useEffect(() => {
     if (!returnSaleId) return;
@@ -528,13 +577,21 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockCardD
       <aside
         className={cn(
           "min-h-0 overflow-hidden rounded-card border border-line",
-          "max-sm:fixed max-sm:inset-0 max-sm:z-50 max-sm:rounded-none max-sm:border-0",
+          "max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:z-50 max-sm:h-auto max-sm:max-h-[88dvh] max-sm:rounded-t-2xl max-sm:border max-sm:border-line max-sm:shadow-2xl",
           !cartOpen && "max-sm:hidden",
           "sm:flex sm:w-[320px] sm:shrink-0 lg:w-[360px] xl:w-[400px]",
         )}
       >
         <CartPanel
           cart={cart}
+          isRestaurant={isRestaurant}
+          orderType={orderType}
+          tableNumber={tableNumber}
+          onOrderTypeChange={(value) => {
+            setOrderType(value);
+            if (value !== "DINE_IN") setTableNumber("");
+          }}
+          onTableNumberChange={setTableNumber}
           busy={busy}
           selectedProductId={selectedProductId}
           onSelectLine={setSelectedProductId}
@@ -549,6 +606,15 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockCardD
           canHold={permissions.canHold}
         />
       </aside>
+
+      {cartOpen && (
+        <button
+          type="button"
+          onClick={() => setCartOpen(false)}
+          aria-label="Close cart"
+          className="fixed inset-0 z-40 bg-black/50 sm:hidden"
+        />
+      )}
 
       {/* Phone cart bar */}
       <div className="safe-bottom sticky bottom-0 z-30 flex items-center gap-3 rounded-card border border-line bg-card p-2.5 sm:hidden">
@@ -583,6 +649,17 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockCardD
       />
 
       <HeldSalesDialog open={heldOpen} onClose={() => setHeldOpen(false)} onResume={resumeSale} />
+
+      <MenuOptionsDialog
+        open={pendingOptionsProduct !== null}
+        productName={pendingOptionsProduct?.name ?? "menu item"}
+        options={pendingMenuOptions}
+        onClose={() => setPendingOptionsProduct(null)}
+        onConfirm={(selected) => {
+          if (pendingOptionsProduct) addProductWithOptions(pendingOptionsProduct, selected);
+          setPendingOptionsProduct(null);
+        }}
+      />
 
       <PaymentDialog
         open={checkoutOpen}

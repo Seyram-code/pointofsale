@@ -16,6 +16,7 @@ export default async function DashboardPage() {
   if (user.role === "SUPER_ADMIN") {
     redirect("/platform");
   }
+  if (user.role === "KITCHEN") redirect("/kitchen");
 
   const data = user.storeId ? await getDashboardData(user.storeId, user.permissions.includes(PERMISSIONS.SALES_VIEW_ALL) ? undefined : user.id) : EMPTY_DASHBOARD;
   const subscription = user.storeId ? await getSubscriptionStatus(user.storeId) : null;

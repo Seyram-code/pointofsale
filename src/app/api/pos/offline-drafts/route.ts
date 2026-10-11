@@ -11,6 +11,8 @@ const draftSchema = z.object({
     id: z.string().min(1),
     customerId: z.string().nullable().optional(),
     note: z.string().nullable().optional(),
+    orderType: z.enum(["DINE_IN", "TAKEAWAY", "DELIVERY"]).nullable().optional(),
+    tableNumber: z.string().max(40).nullable().optional(),
     items: z.array(
       z.object({
         productId: z.string(),

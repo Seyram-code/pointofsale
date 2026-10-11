@@ -1,11 +1,12 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import { Prisma, type PaymentMethod as PrismaPaymentMethod } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError } from "@/lib/api/response";
 import { getPaymentProvider } from "@/lib/payments/registry";
 import { PaymentError } from "@/lib/payments/errors";
 import { nextNumber } from "@/lib/services/numbering.service";
-import { DECIMAL_MONEY, DECIMAL_QTY, priceCart, saleItemCreateData, type PricedCart } from "@/lib/services/cart.service";
+import { DECIMAL_MONEY, DECIMAL_QTY, persistSaleItemOptions, priceCart, saleItemCreateData, type PricedCart } from "@/lib/services/cart.service";
 import { generateReceipt, type ReceiptPayload } from "@/lib/services/receipt.service";
 import { applySalesSummary } from "@/lib/services/sales-summary.service";
 import { addMoney, subtractMoney } from "@/lib/utils/money";
@@ -72,6 +73,9 @@ function toPaymentRequest(
  *   3. finalise (or fail) in a second transaction
  */
 export async function checkout(input: CheckoutInput, context: SaleContext & { appUrl?: string }): Promise<CheckoutResult> {
+  if (context.businessType === "RESTAURANT") {
+    if (!input.orderType) throw ApiError.badRequest("Choose an order type");
+  }
   const cart = await priceCart(context.storeId, input.items, input.discount, context.allowPriceOverride);
 
   const requestedTotal = addMoney(...input.payments.map((payment) => payment.amount));
@@ -119,7 +123,7 @@ export async function checkout(input: CheckoutInput, context: SaleContext & { ap
       amountPaid: 0,
       changeDue: 0,
       itemCount: cart.lines.length,
-      orderItems: cart.lines.map((line) => ({ productId: line.productId, sku: line.sku, quantity: line.quantity })),
+      orderItems: cart.lines.map((line) => ({ productId: line.productId, sku: line.sku, quantity: line.quantity, optionIds: line.optionIds, selectedOptions: line.selectedOptions })),
       payments: results.map((entry) => ({
         id: entry.id,
         method: entry.input.method,
@@ -231,6 +235,16 @@ async function createPendingSale(input: CheckoutInput, context: SaleContext, car
       },
       select: { id: true, receiptNumber: true },
     });
+
+    if (context.businessType === "RESTAURANT") {
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE Sale
+        SET orderType = ${input.orderType},
+            tableNumber = ${input.orderType === "DINE_IN" ? input.tableNumber?.trim() ?? null : null}
+        WHERE id = ${sale.id}
+      `);
+    }
+    await persistSaleItemOptions(tx, sale.id, cart.lines);
 
     for (const line of cart.lines) {
       if (!line.trackStock) continue;
@@ -417,6 +431,16 @@ export async function finalizeSale(saleId: string, context: SaleContext) {
     });
     if (completedSale.count !== 1) throw ApiError.conflict("This sale is no longer pending");
 
+    const [orderDetails] = await tx.$queryRaw<Array<{ orderType: string | null }>>(Prisma.sql`
+      SELECT orderType FROM Sale WHERE id = ${sale.id} AND storeId = ${sale.storeId}
+    `);
+    if (orderDetails?.orderType) {
+      await tx.$executeRaw(Prisma.sql`
+        INSERT IGNORE INTO KitchenTicket (id, storeId, saleId, status, createdAt, updatedAt)
+        VALUES (${randomUUID()}, ${sale.storeId}, ${sale.id}, 'NEW', ${completedAt}, ${completedAt})
+      `);
+    }
+
     let costOfGoods = 0;
     let unitCount = 0;
 
@@ -511,6 +535,9 @@ export async function refreshPaymentStatus(saleId: string, context: SaleContext)
     await releaseSaleStock(saleId, context);
   }
   const allSettled = refreshed.every((payment) => payment.status === "SUCCESSFUL");
+  const failedOrderItems = refreshed.some((payment) => payment.status === "FAILED" || payment.status === "CANCELLED")
+    ? await getSaleOrderItems(sale.id, sale.items.map((item) => ({ id: item.id, productId: item.productId, sku: item.sku, quantity: Number(item.quantity) })))
+    : undefined;
 
   const base: CheckoutResult = {
     saleId,
@@ -520,9 +547,7 @@ export async function refreshPaymentStatus(saleId: string, context: SaleContext)
     amountPaid: 0,
     changeDue: 0,
     itemCount: sale.itemCount,
-    ...(refreshed.some((payment) => payment.status === "FAILED" || payment.status === "CANCELLED")
-      ? { orderItems: sale.items.map((item) => ({ productId: item.productId, sku: item.sku, quantity: Number(item.quantity) })) }
-      : {}),
+    ...(failedOrderItems ? { orderItems: failedOrderItems } : {}),
     payments: refreshed.map((payment) => ({
       id: payment.id,
       method: payment.method,
@@ -556,6 +581,20 @@ export async function refreshPaymentStatus(saleId: string, context: SaleContext)
     changeDue: finalised.changeDue,
     receipt: finalised.receipt,
   };
+}
+
+async function getSaleOrderItems(
+  saleId: string,
+  items: Array<{ id: string; productId: string; sku: string; quantity: number }>,
+) {
+  const optionRows = await prisma.$queryRaw<Array<{ id: string; optionsJson: string | null }>>(Prisma.sql`
+    SELECT id, optionsJson FROM SaleItem WHERE saleId = ${saleId}
+  `);
+  const optionMap = new Map(optionRows.map((row) => [row.id, row.optionsJson ? JSON.parse(row.optionsJson) as Array<{ id: string; name: string; priceDelta: number }> : []]));
+  return items.map((item) => {
+    const selectedOptions = optionMap.get(item.id) ?? [];
+    return { productId: item.productId, sku: item.sku, quantity: item.quantity, optionIds: selectedOptions.map((option) => option.id), selectedOptions };
+  });
 }
 
 /** Reconcile older in-flight hosted payments when the till is no longer polling. */

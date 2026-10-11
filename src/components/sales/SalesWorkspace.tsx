@@ -50,6 +50,8 @@ interface SavedReceipt {
   store: { name: string; branchCode: string; addressLine: string | null; city: string | null; phone: string | null; tinNumber: string | null; vatNumber: string | null; footer: string | null };
   cashier: string;
   customer: { name: string; phone: string | null } | null;
+  orderType: string | null;
+  tableNumber: string | null;
   currency: string;
   items: Array<{ name: string; sku: string; quantity: number; unitPrice: number; lineTotal: number; taxAmount: number }>;
   totals: { subtotal: number; discount: number; tax: number; total: number; amountPaid: number; changeDue: number };
@@ -136,6 +138,7 @@ export function SalesWorkspace({ sales, staff, canViewAll }: SalesWorkspaceProps
         ...(receipt.store.tinNumber ? [`TIN: ${receipt.store.tinNumber}`] : []),
         ...(receipt.store.vatNumber ? [`VAT: ${receipt.store.vatNumber}`] : []),
         `Cashier: ${receipt.cashier}`,
+        ...(receipt.orderType ? [`Order Type: ${receipt.orderType === "DINE_IN" ? "Dine in" : receipt.orderType === "TAKEAWAY" ? "Takeaway" : "Delivery"}`, ...(receipt.tableNumber ? [`Table: ${receipt.tableNumber}`] : [])] : []),
         ...(receipt.customer ? [`Customer: ${receipt.customer.name}`, ...(receipt.customer.phone ? [`Customer phone: ${receipt.customer.phone}`] : [])] : []),
         "",
         "ITEMS",
@@ -321,6 +324,7 @@ export function SalesWorkspace({ sales, staff, canViewAll }: SalesWorkspaceProps
             <p className="mt-2 font-semibold">Receipt: {savedReceipt.receiptNumber}</p>
             <p>{formatDate(savedReceipt.issuedAt)}</p>
             <p>Cashier: {savedReceipt.cashier}</p>
+            {savedReceipt.orderType && <p>Order Type: {savedReceipt.orderType === "DINE_IN" ? "Dine in" : savedReceipt.orderType === "TAKEAWAY" ? "Takeaway" : "Delivery"}{savedReceipt.orderType === "DINE_IN" ? ` · Table ${savedReceipt.tableNumber ?? "—"}` : ""}</p>}
             {savedReceipt.customer && <p>Customer: {savedReceipt.customer.name}{savedReceipt.customer.phone ? ` · ${savedReceipt.customer.phone}` : ""}</p>}
           </header>
           <div className="space-y-2">

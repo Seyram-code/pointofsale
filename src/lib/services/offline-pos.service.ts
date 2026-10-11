@@ -1,4 +1,5 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError } from "@/lib/api/response";
@@ -10,6 +11,8 @@ export interface OfflineDraftSalePayload {
   id: string;
   customerId?: string | null;
   note?: string | null;
+  orderType?: "DINE_IN" | "TAKEAWAY" | "DELIVERY" | null;
+  tableNumber?: string | null;
   items: Array<{
     productId: string;
     quantity: number;
@@ -34,6 +37,10 @@ export async function processOfflineDraftSale(storeId: string, cashierId: string
 
   const itemIds = [...new Set(payload.items.map((item) => item.productId))];
   if (itemIds.length === 0) throw ApiError.badRequest("Offline sale is empty");
+  const store = await prisma.store.findUnique({ where: { id: storeId }, select: { businessType: true } });
+  if (store?.businessType === "RESTAURANT") {
+    if (!payload.orderType) throw ApiError.badRequest("Choose an order type before saving this restaurant order");
+  }
 
   const products = await prisma.product.findMany({
     where: { id: { in: itemIds }, storeId, deletedAt: null },
@@ -105,6 +112,18 @@ export async function processOfflineDraftSale(storeId: string, cashierId: string
       },
       select: { id: true },
     });
+
+    if (store?.businessType === "RESTAURANT") {
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE Sale SET orderType = ${payload.orderType},
+          tableNumber = ${payload.orderType === "DINE_IN" ? payload.tableNumber?.trim() ?? null : null}
+        WHERE id = ${sale.id}
+      `);
+      await tx.$executeRaw(Prisma.sql`
+        INSERT IGNORE INTO KitchenTicket (id, storeId, saleId, status, createdAt, updatedAt)
+        VALUES (${randomUUID()}, ${storeId}, ${sale.id}, 'NEW', NOW(3), NOW(3))
+      `);
+    }
 
     for (const item of payload.items) {
       const product = productMap.get(item.productId)!;

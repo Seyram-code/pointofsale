@@ -19,7 +19,7 @@ export function Sidebar({ mobileOpen, onCloseMobile, restricted = false }: Sideb
   const user = useCurrentUser();
   const pathname = usePathname();
   const router = useRouter();
-  const sections = visibleSections(user.permissions, user.role, user.isEmployee)
+  const sections = visibleSections(user.permissions, user.role, user.isEmployee, user.businessType === "RESTAURANT")
     .map((section) => ({
       ...section,
       items: restricted ? section.items.filter((item) => ["/subscription", "/support"].includes(item.href)) : section.items,

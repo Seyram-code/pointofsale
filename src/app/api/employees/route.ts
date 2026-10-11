@@ -11,7 +11,7 @@ import { getSubscriptionPlan } from "@/lib/config/subscription-plans";
 import { createNotification } from "@/lib/services/notifications.service";
 import { Prisma } from "@prisma/client";
 
-const STAFF_ROLES: UserRole[] = ["ADMIN", "MANAGER", "SUPERVISOR", "CASHIER", "STOCK_KEEPER", "ACCOUNTANT"];
+const STAFF_ROLES: UserRole[] = ["ADMIN", "MANAGER", "SUPERVISOR", "CASHIER", "STOCK_KEEPER", "ACCOUNTANT", "KITCHEN"];
 
 function canManageRole(sessionRole: string, role: string) {
   return role !== "ADMIN" || sessionRole === "ADMIN" || sessionRole === "SUPER_ADMIN";
@@ -24,6 +24,9 @@ export async function GET(request: NextRequest) {
     const role = request.nextUrl.searchParams.get("role");
     if (!role || !STAFF_ROLES.includes(role as UserRole) || !canManageRole(session.user.role, role)) {
       throw new ApiError("FORBIDDEN", "You cannot preview this role", 403);
+    }
+    if (role === "KITCHEN" && session.user.businessType !== "RESTAURANT") {
+      throw new ApiError("FORBIDDEN", "The Kitchen role is only available for restaurants", 403);
     }
 
     const staffCode = await peekShortNumber(session.user.storeId, `STAFF_${role}`, STAFF_ROLE_PREFIXES[role]);
@@ -67,6 +70,9 @@ export async function POST(request: NextRequest) {
     if (!canManageRole(session.user.role, role)) {
       throw new ApiError("FORBIDDEN", "Only administrators can create administrator accounts", 403);
     }
+    if (role === "KITCHEN" && session.user.businessType !== "RESTAURANT") {
+      throw new ApiError("FORBIDDEN", "The Kitchen role is only available for restaurants", 403);
+    }
     const codePattern = new RegExp(`^${getStoreAccessCodePrefix(session.user.storeName ?? "Shop")}\\d{3}$`);
     if (!codePattern.test(requestedAccessCode)) throw ApiError.badRequest("Generate a valid staff access code for this store");
     const requestedAccessCodeHash = hashStaffAccessCode(requestedAccessCode);
@@ -101,7 +107,7 @@ export async function POST(request: NextRequest) {
               passwordHash: null,
               staffAccessCodeHash: generatedCode.hash,
               staffAccessCodeEncrypted: encryptStaffAccessCode(generatedCode.accessCode),
-              role: role as UserRole,
+              role: (role === "KITCHEN" ? "CASHIER" : role) as UserRole,
               status: "ACTIVE",
               mustChangePassword: false,
               employeeProfile: {
@@ -110,7 +116,10 @@ export async function POST(request: NextRequest) {
             },
             select: { id: true, fullName: true, email: true, staffCode: true, role: true, employeeProfile: { select: { employeeNumber: true } } },
           });
-          return { user, accessCode: generatedCode.accessCode };
+          if (role === "KITCHEN") {
+            await tx.$executeRaw`UPDATE User SET role = 'KITCHEN' WHERE id = ${user.id} AND storeId = ${storeId}`;
+          }
+          return { user: { ...user, role: role as UserRole }, accessCode: generatedCode.accessCode };
         });
         createdUser = createdEmployee.user;
         staffAccessCode = createdEmployee.accessCode;

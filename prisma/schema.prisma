@@ -24,6 +24,7 @@ enum UserRole {
   CASHIER
   STOCK_KEEPER
   ACCOUNTANT
+  KITCHEN
 }
 
 enum UserStatus {
@@ -215,6 +216,7 @@ model Store {
   inventoryLevels InventoryLevel[]
   stockMovements  StockMovement[]
   sales           Sale[]
+  kitchenTickets  KitchenTicket[]
   purchaseOrders  PurchaseOrder[]
   shifts          Shift[]
   customers       Customer[]
@@ -453,6 +455,7 @@ model Product {
   inventoryLevels InventoryLevel[]
   stockMovements  StockMovement[]
   saleItems       SaleItem[]
+  menuOptions     MenuOption[]
   purchaseItems   PurchaseOrderItem[]
   returnItems     SaleReturnItem[]
   priceHistory    PriceHistory[]
@@ -746,6 +749,8 @@ model Sale {
   customerId    String?
   receiptNumber String
   status        SaleStatus @default(DRAFT)
+  orderType     String?
+  tableNumber   String?
 
   subtotal       Decimal    @default(0) @db.Decimal(12, 2)
   discountType   DiscountType?
@@ -776,6 +781,7 @@ model Sale {
   payments Payment[]
   returns  SaleReturn[]
   receipts Receipt[]
+  kitchenTicket KitchenTicket?
 
   @@unique([storeId, receiptNumber])
   @@index([storeId, createdAt])
@@ -784,6 +790,21 @@ model Sale {
   @@index([shiftId])
   @@index([customerId])
   @@index([completedAt])
+}
+
+model KitchenTicket {
+  id          String    @id @default(cuid())
+  storeId     String
+  saleId      String    @unique
+  status      String    @default("NEW")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  sale  Sale  @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, status, createdAt])
 }
 
 model SaleItem {
@@ -802,6 +823,7 @@ model SaleItem {
   lineTotal      Decimal  @db.Decimal(12, 2)
   refundedQty    Decimal  @default(0) @db.Decimal(12, 3)
   priceOverridden Boolean @default(false)
+  optionsJson     String?  @db.Text
   createdAt      DateTime @default(now())
 
   sale    Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
@@ -809,6 +831,21 @@ model SaleItem {
 
   @@index([saleId])
   @@index([productId])
+}
+
+model MenuOption {
+  id         String   @id @default(cuid())
+  productId  String
+  name       String
+  priceDelta Decimal  @default(0) @db.Decimal(12, 2)
+  isActive   Boolean  @default(true)
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, isActive, sortOrder])
 }
 
 model Payment {

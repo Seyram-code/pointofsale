@@ -19,6 +19,8 @@ export interface PricedLine {
   taxRate: number;
   overridden: boolean;
   trackStock: boolean;
+  optionIds: string[];
+  selectedOptions: Array<{ id: string; name: string; priceDelta: number }>;
   totals: LineTotals;
 }
 
@@ -64,15 +66,36 @@ export async function priceCart(
     throw ApiError.badRequest("Some products in the cart are no longer available");
   }
 
+  const selectedOptionIds = [...new Set(items.flatMap((item) => item.optionIds ?? []))];
+  const options = selectedOptionIds.length
+    ? await prisma.$queryRaw<Array<{ id: string; productId: string; name: string; priceDelta: Prisma.Decimal }>>(Prisma.sql`
+        SELECT mo.id, mo.productId, mo.name, mo.priceDelta
+        FROM MenuOption mo
+        INNER JOIN Product p ON p.id = mo.productId
+        WHERE p.storeId = ${storeId} AND p.deletedAt IS NULL AND mo.isActive = 1
+          AND mo.id IN (${Prisma.join(selectedOptionIds)})
+      `)
+    : [];
+  const optionMap = new Map(options.map((option) => [option.id, option]));
+  for (const item of items) {
+    for (const optionId of item.optionIds ?? []) {
+      if (optionMap.get(optionId)?.productId !== item.productId) {
+        throw ApiError.badRequest("A selected menu option is no longer available for this item");
+      }
+    }
+  }
+
   const catalogue = new Map(products.map((product) => [product.id, product]));
 
   const priced = items.map((item) => {
     const product = catalogue.get(item.productId)!;
+    const selectedOptions = (item.optionIds ?? []).map((optionId) => optionMap.get(optionId)!);
     const override = allowPriceOverride && item.unitPriceOverride !== undefined ? item.unitPriceOverride : undefined;
     return {
       item,
       product,
-      unitPrice: override ?? Number(product.sellingPrice),
+      selectedOptions,
+      unitPrice: (override ?? Number(product.sellingPrice)) + selectedOptions.reduce((sum, option) => sum + Number(option.priceDelta), 0),
       overridden: override !== undefined,
       taxRate: product.taxRate ? Number(product.taxRate.rate) : (defaultTaxRate ? Number(defaultTaxRate.rate) : 0),
     };
@@ -99,6 +122,8 @@ export async function priceCart(
     taxRate: entry.taxRate,
     overridden: entry.overridden,
     trackStock: entry.product.trackStock,
+    optionIds: entry.item.optionIds ?? [],
+    selectedOptions: entry.selectedOptions.map((option) => ({ id: option.id, name: option.name, priceDelta: Number(option.priceDelta) })),
     totals: totals.lines[index],
   }));
 
@@ -113,7 +138,9 @@ export async function priceCart(
 export function saleItemCreateData(lines: PricedLine[]): Prisma.SaleItemCreateWithoutSaleInput[] {
   return lines.map((line) => ({
     product: { connect: { id: line.productId } },
-    productName: line.name,
+    productName: line.selectedOptions.length
+      ? `${line.name} (${line.selectedOptions.map((option) => option.name).join(", ")})`
+      : line.name,
     sku: line.sku,
     barcode: line.barcode,
     quantity: DECIMAL_QTY(line.quantity),
@@ -124,4 +151,24 @@ export function saleItemCreateData(lines: PricedLine[]): Prisma.SaleItemCreateWi
     lineTotal: DECIMAL_MONEY(line.totals.lineTotal),
     priceOverridden: line.overridden,
   }));
+}
+
+export async function persistSaleItemOptions(
+  tx: Prisma.TransactionClient,
+  saleId: string,
+  lines: PricedLine[],
+) {
+  for (const line of lines) {
+    if (line.selectedOptions.length === 0) continue;
+    const optionsJson = JSON.stringify(line.selectedOptions);
+    const productName = `${line.name} (${line.selectedOptions.map((option) => option.name).join(", ")})`;
+    await tx.$executeRaw(Prisma.sql`
+      UPDATE SaleItem SET optionsJson = ${optionsJson}
+      WHERE saleId = ${saleId} AND productId = ${line.productId}
+        AND productName = ${productName}
+        AND unitPrice = ${DECIMAL_MONEY(line.unitPrice)}
+        AND quantity = ${DECIMAL_QTY(line.quantity)} AND optionsJson IS NULL
+      LIMIT 1
+    `);
+  }
 }

@@ -48,7 +48,7 @@ export function ProductGrid({ products, loading, onSelect }: ProductGridProps) {
           >
             <span className="flex min-w-0 flex-1 flex-col gap-2 p-3">
               <span className="line-clamp-2 min-w-0 text-sm font-medium leading-snug text-fg">{product.name}</span>
-              <Money value={product.unitPrice} className="font-semibold text-brand-700 dark:text-brand-300" />
+              <Money value={product.unitPrice} className="font-bold text-fg" />
               <span
                 className={cn(
                   "border-t border-line pt-1 text-xs tabular",

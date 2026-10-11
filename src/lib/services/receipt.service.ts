@@ -21,6 +21,8 @@ export interface ReceiptPayload {
   };
   cashier: string;
   customer: { name: string; phone: string | null } | null;
+  orderType: string | null;
+  tableNumber: string | null;
   currency: string;
   items: Array<{
     name: string;
@@ -67,6 +69,10 @@ export async function generateReceipt(client: TxClient, saleId: string): Promise
 
   if (!sale) throw ApiError.notFound("Sale");
 
+  const [orderDetails] = await client.$queryRaw<Array<{ orderType: string | null; tableNumber: string | null }>>(Prisma.sql`
+    SELECT orderType, tableNumber FROM Sale WHERE id = ${sale.id}
+  `);
+
   const payload: ReceiptPayload = {
     receiptNumber: sale.receiptNumber,
     issuedAt: (sale.completedAt ?? sale.createdAt).toISOString(),
@@ -82,6 +88,8 @@ export async function generateReceipt(client: TxClient, saleId: string): Promise
     },
     cashier: sale.cashier.fullName,
     customer: sale.customer ? { name: sale.customer.fullName, phone: sale.customer.phone } : null,
+    orderType: orderDetails?.orderType ?? null,
+    tableNumber: orderDetails?.tableNumber ?? null,
     currency: sale.store.currency,
     items: sale.items.map((item) => ({
       name: item.productName,

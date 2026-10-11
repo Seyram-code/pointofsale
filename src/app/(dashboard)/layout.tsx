@@ -14,6 +14,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const session = await requireSession();
   const currentPath = (await headers()).get("x-mypo-pathname");
   const isSupportPage = currentPath === "/support";
+  if (session.user.role === "KITCHEN" && currentPath !== "/kitchen") redirect("/kitchen");
   const hasAccess = session.user.role === "SUPER_ADMIN" || !session.user.storeId || session.user.subscriptionActive;
 
   if (!hasAccess && !isSupportPage) {

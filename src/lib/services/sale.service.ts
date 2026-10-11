@@ -3,13 +3,14 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { ApiError } from "@/lib/api/response";
 import { nextNumber } from "@/lib/services/numbering.service";
-import { DECIMAL_MONEY, priceCart, saleItemCreateData } from "@/lib/services/cart.service";
+import { DECIMAL_MONEY, persistSaleItemOptions, priceCart, saleItemCreateData } from "@/lib/services/cart.service";
 import type { HoldSaleInput } from "@/lib/validations/sale.schema";
 
 export interface SaleContext {
   storeId: string;
   cashierId: string;
   allowPriceOverride: boolean;
+  businessType?: string;
 }
 
 export interface HeldSaleResult {
@@ -21,6 +22,9 @@ export interface HeldSaleResult {
 
 /** Parks a cart as a DRAFT sale. No stock or money moves until checkout. */
 export async function holdSale(input: HoldSaleInput, context: SaleContext): Promise<HeldSaleResult> {
+  if (context.businessType === "RESTAURANT") {
+    if (!input.orderType) throw ApiError.badRequest("Choose an order type");
+  }
   const cart = await priceCart(context.storeId, input.items, input.discount, context.allowPriceOverride);
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -72,6 +76,16 @@ export async function holdSale(input: HoldSaleInput, context: SaleContext): Prom
           },
           select: { id: true, receiptNumber: true, total: true, itemCount: true },
         });
+
+        if (context.businessType === "RESTAURANT") {
+          await tx.$executeRaw(Prisma.sql`
+            UPDATE Sale
+            SET orderType = ${input.orderType},
+                tableNumber = ${input.orderType === "DINE_IN" ? input.tableNumber?.trim() ?? null : null}
+            WHERE id = ${sale.id}
+          `);
+        }
+        await persistSaleItemOptions(tx, sale.id, cart.lines);
 
         return {
           id: sale.id,
@@ -135,6 +149,7 @@ export async function getHeldSale(storeId: string, saleId: string) {
       customer: { select: { id: true, fullName: true, phone: true } },
       items: {
         select: {
+          id: true,
           productId: true,
           productName: true,
           sku: true,
@@ -151,10 +166,20 @@ export async function getHeldSale(storeId: string, saleId: string) {
 
   if (!draft) throw ApiError.notFound("Held sale");
 
+  const [orderDetails] = await prisma.$queryRaw<Array<{ orderType: string | null; tableNumber: string | null }>>(Prisma.sql`
+    SELECT orderType, tableNumber FROM Sale WHERE id = ${draft.id} AND storeId = ${storeId}
+  `);
+  const optionRows = await prisma.$queryRaw<Array<{ id: string; optionsJson: string | null }>>(Prisma.sql`
+    SELECT id, optionsJson FROM SaleItem WHERE saleId = ${draft.id}
+  `);
+  const optionMap = new Map(optionRows.map((row) => [row.id, row.optionsJson ? JSON.parse(row.optionsJson) as Array<{ id: string; name: string; priceDelta: number }> : []]));
+
   return {
     id: draft.id,
     receiptNumber: draft.receiptNumber,
     note: draft.note,
+    orderType: (orderDetails?.orderType as "DINE_IN" | "TAKEAWAY" | "DELIVERY" | null) ?? null,
+    tableNumber: orderDetails?.tableNumber ?? null,
     discount:
       draft.discountType && Number(draft.discountValue) > 0
         ? { type: draft.discountType, value: Number(draft.discountValue) }
@@ -164,6 +189,7 @@ export async function getHeldSale(storeId: string, saleId: string) {
       : null,
     items: draft.items.map((item) => ({
       productId: item.productId,
+      lineId: `${item.productId}:${item.id}`,
       name: item.productName,
       sku: item.sku,
       barcode: item.barcode,
@@ -173,6 +199,8 @@ export async function getHeldSale(storeId: string, saleId: string) {
       isVatInclusive: item.product.isVatInclusive,
       unitAbbreviation: item.product.unit?.abbreviation ?? null,
       priceOverridden: item.priceOverridden,
+      optionIds: (optionMap.get(item.id) ?? []).map((option) => option.id),
+      selectedOptions: optionMap.get(item.id) ?? [],
     })),
   };
 }

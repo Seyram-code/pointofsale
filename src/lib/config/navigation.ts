@@ -62,6 +62,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "Payment revenue", href: "/platform/payment-revenue", icon: Receipt, role: "SUPER_ADMIN", primary: true },
       { label: "Subscription revenue", href: "/platform/subscription-revenue", icon: Repeat, role: "SUPER_ADMIN", primary: true },
       { label: "Make a Sale", href: "/pos", icon: ShoppingCart, permission: PERMISSIONS.POS_ACCESS, primary: true },
+      { label: "Kitchen", href: "/kitchen", icon: ClipboardList, permission: PERMISSIONS.KITCHEN_VIEW },
       { label: "Products", href: "/products", icon: Package, permission: PERMISSIONS.PRODUCTS_VIEW, primary: true },
       { label: "Inventory", href: "/inventory", icon: Boxes, permission: PERMISSIONS.INVENTORY_VIEW },
       { label: "Sales", href: "/sales", icon: Receipt, permission: PERMISSIONS.SALES_VIEW, primary: true },
@@ -96,11 +97,14 @@ export const NAV_SECTIONS: NavSection[] = [
   },
 ];
 
-export function visibleSections(permissions: readonly string[], role?: UserRole, isEmployee = false): NavSection[] {
+export function visibleSections(permissions: readonly string[], role?: UserRole, isEmployee = false, isRestaurant = false): NavSection[] {
   return NAV_SECTIONS.map((section) => ({
     ...section,
     items: section.items.filter((item) => {
+      if (role === "KITCHEN" && item.href !== "/kitchen") return false;
       if (isEmployee && ["/subscription", "/sales"].includes(item.href)) return false;
+      if (item.href === "/dashboard" && role === "KITCHEN") return false;
+      if (item.href === "/kitchen" && !isRestaurant) return false;
       if (item.role && item.role !== role) {
         return false;
       }
@@ -112,7 +116,7 @@ export function visibleSections(permissions: readonly string[], role?: UserRole,
   })).filter((section) => section.items.length > 0);
 }
 
-export function mobileNavItems(permissions: readonly string[], role?: UserRole, isEmployee = false): NavItem[] {
+export function mobileNavItems(permissions: readonly string[], role?: UserRole, isEmployee = false, isRestaurant = false): NavItem[] {
   const items = NAV_SECTIONS.flatMap((section) => section.items);
 
   if (role === "SUPER_ADMIN") {
@@ -120,8 +124,11 @@ export function mobileNavItems(permissions: readonly string[], role?: UserRole, 
   }
 
   return items
+    .filter((item) => role !== "KITCHEN" || item.href === "/kitchen")
     .filter((item) => !item.role || item.role === role)
+    .filter((item) => item.href !== "/dashboard" || role !== "KITCHEN")
     .filter((item) => !isEmployee || !["/subscription", "/sales"].includes(item.href))
+    .filter((item) => item.href !== "/kitchen" || isRestaurant)
     .filter((item) => item.primary && (!item.permission || permissions.includes(item.permission)))
     .slice(0, 5);
 }

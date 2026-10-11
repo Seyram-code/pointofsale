@@ -141,6 +141,10 @@ export function DashboardView({ user, data, subscription }: { user: SessionUser;
             <Boxes className="size-5 text-brand-600" />
             <span><strong className="block text-sm text-fg">Check ingredients</strong><span className="text-xs text-fg-muted">Review stock and expiry alerts</span></span>
           </Link>
+          <Link href="/kitchen" className="flex items-center gap-3 rounded-xl border border-line bg-card p-4 transition-colors hover:border-brand-400 hover:bg-muted">
+            <ClipboardList className="size-5 text-brand-600" />
+            <span><strong className="block text-sm text-fg">Kitchen tickets</strong><span className="text-xs text-fg-muted">Prepare confirmed orders</span></span>
+          </Link>
         </div>
       )}
 

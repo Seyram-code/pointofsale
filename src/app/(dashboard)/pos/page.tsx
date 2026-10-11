@@ -32,6 +32,7 @@ export default async function PosPage() {
       mockCardDriver={isMockCardDriver()}
       mockMomoDriver={isMockMomoDriver()}
       storeEmail={store?.email ?? ""}
+      isRestaurant={user.businessType === "RESTAURANT"}
       permissions={{
         canDiscount: user.permissions.includes(PERMISSIONS.POS_DISCOUNT_APPLY),
         canHold: user.permissions.includes(PERMISSIONS.POS_HOLD_SALE),

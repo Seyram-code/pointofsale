@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import { StoreLogo } from "@/components/brand/StoreLogo";
 import { publicEnv } from "@/lib/config/env";
-import { getPlatformPlanPricing } from "@/lib/services/plan-pricing.service";
 import { SUBSCRIPTION_PLANS, type SubscriptionPlan } from "@/lib/config/subscription-plans";
 import type { Metadata } from "next";
 
@@ -69,9 +68,23 @@ const FAQS = [
   { question: "Where can I get help or learn how my information is used?", answer: "Review our privacy terms in the app and speak with your store administrator for account support and access questions." },
 ];
 
-export default async function HomePage() {
-  const pricing = await getPlatformPlanPricing();
-  const pricingByKey = new Map(pricing.map((plan) => [plan.key, plan]));
+export default function HomePage() {
+  const pricingByKey = new Map(
+    (Object.keys(SUBSCRIPTION_PLANS) as SubscriptionPlan[]).map((key) => [
+      key,
+      {
+        key,
+        name: SUBSCRIPTION_PLANS[key].name,
+        monthlyPrice: SUBSCRIPTION_PLANS[key].monthlyPrice,
+        priceLabel:
+          SUBSCRIPTION_PLANS[key].monthlyPrice == null
+            ? key === "TRIAL"
+              ? "Free for 14 days"
+              : "Custom pricing"
+            : `GHS ${SUBSCRIPTION_PLANS[key].monthlyPrice.toLocaleString("en-GH")} / month`,
+      },
+    ]),
+  );
 
   return (
     <div className="min-h-dvh bg-slate-950 text-white">

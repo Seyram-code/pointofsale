@@ -34,6 +34,7 @@ export function CartLine({ line, selected, onSelect, onAdjust, onSetQuantity, on
             {line.unitAbbreviation ? ` / ${line.unitAbbreviation}` : ""}
             {line.unitPrice !== line.originalPrice && " · price overridden"}
           </p>
+          {line.selectedOptions.length > 0 && <p className="mt-0.5 text-xs text-fg-secondary">{line.selectedOptions.map((option) => option.name).join(", ")}</p>}
           {overStock && <p className="mt-0.5 text-xs font-medium text-danger">Only {formatQuantity(line.stock)} in stock</p>}
         </div>
 

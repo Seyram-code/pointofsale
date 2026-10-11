@@ -9,7 +9,7 @@ import { useCurrentUser } from "@/components/providers/SessionProvider";
 export function MobileNav({ restricted = false }: { restricted?: boolean }) {
   const user = useCurrentUser();
   const pathname = usePathname();
-  const items = mobileNavItems(user.permissions, user.role, user.isEmployee)
+  const items = mobileNavItems(user.permissions, user.role, user.isEmployee, user.businessType === "RESTAURANT")
     .filter((item) => !restricted || ["/subscription", "/support"].includes(item.href));
 
   if (user.role === "SUPER_ADMIN" || items.length === 0) return null;

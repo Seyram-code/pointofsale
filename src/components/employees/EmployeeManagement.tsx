@@ -13,7 +13,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { useToast } from "@/components/ui/Toast";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
-type StaffRole = "SUPER_ADMIN" | "ADMIN" | "MANAGER" | "SUPERVISOR" | "CASHIER" | "STOCK_KEEPER" | "ACCOUNTANT";
+type StaffRole = "SUPER_ADMIN" | "ADMIN" | "MANAGER" | "SUPERVISOR" | "CASHIER" | "STOCK_KEEPER" | "ACCOUNTANT" | "KITCHEN";
 
 interface EmployeeRecord {
   id: string;
@@ -31,13 +31,14 @@ const roleOptions = [
   { value: "CASHIER", label: "Cashier" },
   { value: "STOCK_KEEPER", label: "Stock Keeper" },
   { value: "ACCOUNTANT", label: "Accountant" },
+  { value: "KITCHEN", label: "Kitchen" },
 ];
 
 function roleLabel(role: StaffRole) {
   return roleOptions.find((option) => option.value === role)?.label ?? role;
 }
 
-export function EmployeeManagement({ initialEmployees, canManageAdmins }: { initialEmployees: EmployeeRecord[]; canManageAdmins: boolean }) {
+export function EmployeeManagement({ initialEmployees, canManageAdmins, isRestaurant }: { initialEmployees: EmployeeRecord[]; canManageAdmins: boolean; isRestaurant: boolean }) {
   const router = useRouter();
   const [showForm, setShowForm] = useState(false);
   const [createdAccessCode, setCreatedAccessCode] = useState<string | null>(null);
@@ -184,7 +185,7 @@ export function EmployeeManagement({ initialEmployees, canManageAdmins }: { init
                 setFullName(nextName);
                 if (startingNameEntry) void generateAccessCode(nextName);
               }} />
-              <Select label="Role" name="role" required options={canManageAdmins ? roleOptions : roleOptions.filter((option) => option.value !== "ADMIN")} value={role} onChange={(event) => setRole(event.target.value as StaffRole)} />
+              <Select label="Role" name="role" required options={(canManageAdmins ? roleOptions : roleOptions.filter((option) => option.value !== "ADMIN")).filter((option) => option.value !== "KITCHEN" || isRestaurant)} value={role} onChange={(event) => setRole(event.target.value as StaffRole)} />
               <Input
                 label="Staff access code"
                 name="staffAccessCode"

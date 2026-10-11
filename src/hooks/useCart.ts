@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { computeCartTotals, type CartDiscountType } from "@/lib/services/pricing";
 
 export interface CartLine {
+  lineId: string;
   productId: string;
   name: string;
   sku: string;
@@ -16,6 +17,8 @@ export interface CartLine {
   unitAbbreviation: string | null;
   stock: number;
   trackStock: boolean;
+  optionIds: string[];
+  selectedOptions: Array<{ id: string; name: string; priceDelta: number }>;
 }
 
 export interface CartCustomer {
@@ -38,7 +41,7 @@ export function useCart() {
 
   const addLine = useCallback((line: Omit<CartLine, "quantity">, quantity = 1) => {
     setLines((current) => {
-      const index = current.findIndex((entry) => entry.productId === line.productId);
+      const index = current.findIndex((entry) => entry.lineId === line.lineId);
       const existingQuantity = index === -1 ? 0 : current[index].quantity;
       const availableQuantity = line.trackStock ? Math.max(line.stock - existingQuantity, 0) : quantity;
       const acceptedQuantity = line.trackStock ? Math.min(quantity, availableQuantity) : quantity;
@@ -52,23 +55,23 @@ export function useCart() {
     });
   }, []);
 
-  const setQuantity = useCallback((productId: string, quantity: number) => {
+  const setQuantity = useCallback((lineId: string, quantity: number) => {
     setLines((current) =>
       quantity <= 0
-        ? current.filter((line) => line.productId !== productId)
+        ? current.filter((line) => line.lineId !== lineId)
         : current.map((line) =>
-            line.productId === productId
+          line.lineId === lineId
               ? { ...line, quantity: line.trackStock ? Math.min(quantity, line.stock) : quantity }
               : line,
           ),
     );
   }, []);
 
-  const adjustQuantity = useCallback((productId: string, delta: number) => {
+  const adjustQuantity = useCallback((lineId: string, delta: number) => {
     setLines((current) =>
       current
         .map((line) =>
-          line.productId === productId
+          line.lineId === lineId
             ? {
                 ...line,
                 quantity: line.trackStock
@@ -81,14 +84,14 @@ export function useCart() {
     );
   }, []);
 
-  const setUnitPrice = useCallback((productId: string, unitPrice: number) => {
+  const setUnitPrice = useCallback((lineId: string, unitPrice: number) => {
     setLines((current) =>
-      current.map((line) => (line.productId === productId ? { ...line, unitPrice } : line)),
+      current.map((line) => (line.lineId === lineId ? { ...line, unitPrice } : line)),
     );
   }, []);
 
-  const removeLine = useCallback((productId: string) => {
-    setLines((current) => current.filter((line) => line.productId !== productId));
+  const removeLine = useCallback((lineId: string) => {
+    setLines((current) => current.filter((line) => line.lineId !== lineId));
   }, []);
 
   const clear = useCallback(() => {

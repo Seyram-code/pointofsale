@@ -3,6 +3,7 @@ import { z } from "zod";
 export const cartItemSchema = z.object({
   productId: z.string().min(1),
   quantity: z.coerce.number().positive().max(9999),
+  optionIds: z.array(z.string().min(1)).max(20).default([]),
   /** Only honoured when the cashier holds the price-override permission. */
   unitPriceOverride: z.coerce.number().nonnegative().optional(),
 });
@@ -15,6 +16,9 @@ export const cartDiscountSchema = z.object({
 });
 
 export type CartDiscountInput = z.infer<typeof cartDiscountSchema>;
+
+export const restaurantOrderTypeSchema = z.enum(["DINE_IN", "TAKEAWAY", "DELIVERY"]);
+export type RestaurantOrderType = z.infer<typeof restaurantOrderTypeSchema>;
 
 export const paymentInputSchema = z.object({
   method: z.enum(["CASH", "MOMO", "CARD_TERMINAL", "CARD"]),
@@ -34,6 +38,8 @@ export type PaymentInput = z.infer<typeof paymentInputSchema>;
 export const checkoutSchema = z.object({
   items: z.array(cartItemSchema).min(1, "Add at least one product"),
   customerId: z.string().min(1).nullable().optional(),
+  orderType: restaurantOrderTypeSchema.optional(),
+  tableNumber: z.string().trim().max(40).optional(),
   discount: cartDiscountSchema.optional(),
   note: z.string().trim().max(500).optional(),
   payments: z.array(paymentInputSchema).min(1, "At least one payment is required"),
@@ -46,6 +52,8 @@ export type CheckoutInput = z.infer<typeof checkoutSchema>;
 export const holdSaleSchema = z.object({
   items: z.array(cartItemSchema).min(1, "Add at least one product"),
   customerId: z.string().min(1).nullable().optional(),
+  orderType: restaurantOrderTypeSchema.optional(),
+  tableNumber: z.string().trim().max(40).optional(),
   discount: cartDiscountSchema.optional(),
   note: z.string().trim().max(500).optional(),
   resumeSaleId: z.string().min(1).optional(),

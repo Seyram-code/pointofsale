@@ -22,6 +22,7 @@ export const STAFF_ROLE_PREFIXES: Record<string, string> = {
   CASHIER: "CSH",
   STOCK_KEEPER: "STK",
   ACCOUNTANT: "ACC",
+  KITCHEN: "KIT",
 };
 
 /**

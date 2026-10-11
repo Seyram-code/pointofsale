@@ -8,6 +8,7 @@ import type { UserRole } from "@prisma/client";
 export const PERMISSIONS = {
   // Point of sale
   POS_ACCESS: "pos.access",
+  KITCHEN_VIEW: "kitchen.view",
   POS_SELL: "pos.sell",
   POS_HOLD_SALE: "pos.hold",
   POS_PRICE_OVERRIDE: "pos.price_override",
@@ -175,6 +176,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   CASHIER: CASHIER_PERMISSIONS,
   STOCK_KEEPER: STOCK_KEEPER_PERMISSIONS,
   ACCOUNTANT: ACCOUNTANT_PERMISSIONS,
+  KITCHEN: [PERMISSIONS.KITCHEN_VIEW],
 };
 
 export const ROLE_LABELS: Record<UserRole, string> = {
@@ -185,6 +187,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   CASHIER: "Cashier",
   STOCK_KEEPER: "Stock Keeper",
   ACCOUNTANT: "Accountant",
+  KITCHEN: "Kitchen",
 };
 
 /** Merges the role baseline with per-user overrides. */

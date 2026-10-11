@@ -64,7 +64,7 @@ function cover(){
   rounded(429,511,114,95,6,"#222e38","#34434d");text("Payment mix",440,522,{size:8,font:"Helvetica-Bold",color:"#d6dfe5"});
   doc.circle(486,565,26).lineWidth(8).strokeColor(C.green).stroke();doc.circle(486,565,26).lineWidth(8).strokeColor("#3e91d1").stroke();
   text("Illustrated interface map",56,648,{size:8,color:"#9baab5"});
-  text("Edition 1.0  |  2 October 2026",56,690,{size:10,color:"#b9c6cf"});
+  text("Edition 1.1  |  6 October 2026",56,690,{size:10,color:"#b9c6cf"});
   text("Prepared from the current VidyPOS application workflows. Some options depend on assigned permissions and subscription plan.",56,713,{size:8,color:"#8797a3",width:490});
 }
 function callout(title,body,type="info"){
@@ -150,7 +150,7 @@ function footer(){
 
 cover();
 header("Start here","How to use this manual","A route-by-route guide to the current VidyPOS screens. Follow only the sections available to your role.");
-callout("Important","This manual documents the application as it exists on 2 October 2026. Buttons and page access vary by permissions, store plan, and subscription status.");
+callout("Important","This manual documents the application as it exists on 6 October 2026. Buttons and page access vary by permissions, store plan, and subscription status.");
 schematic("VidyPOS navigation (illustration)",["Dashboard","POS","Products","Inventory","Sales","Reports","Customers","Suppliers","Employees","Returns","Settings","Subscription","Help & Support"],"Sections marked LIVE VIDYPOS SCREEN use real authenticated captures with local demo data. Other schematics cover routes unavailable to the captured Starter account.");
 steps([
  {title:"Find a page",body:"Use the left sidebar on desktop or the mobile navigation at the bottom of the app. The signed-in role determines which links appear."},
@@ -161,7 +161,7 @@ steps([
 callout("Security note","Never share your password. Sign out on shared devices. The app signs users out after a period of inactivity.","warning");
 
 page("01 • Access","Register your store","Create the first owner account and start store setup.",{title:"Registration form",labels:["Business details","Business type","Contact information","Owner account","Choose your plan","Start free trial"],caption:"Registration creates the store and the first administrator account."},[
- {title:"Open Register",body:"From the public home page choose Start free trial. Enter the business name and choose the closest business type."},
+ {title:"Open Register",body:"From the public home page choose Start your 14-day trial. Enter the business name and choose the closest business type."},
  {title:"Enter store details",body:"Provide business phone and email, address, city, region, country, and currency. Registration number, logo URL, and tax settings may be optional depending on the field."},
  {title:"Create the owner login",body:"Enter owner name, email, phone, and a strong password. The password hint asks for uppercase, lowercase, a number, and a symbol."},
  {title:"Choose a plan and submit",body:"Select Starter, Premium, or Enterprise, review the displayed price, then choose Start 14-day free trial. Registration begins a 14-day trial on the selected package."},
@@ -195,7 +195,7 @@ page("05 • Sell","Checkout and receipts","Collect payment and complete the tra
  {title:"Open checkout",body:"With products in the cart, choose Checkout. Confirm the total, tax, discount, and customer before taking payment."},
  {title:"Choose a payment method",body:"Select an available method such as cash, Mobile Money, card terminal, or card. Follow the prompts for that method."},
  {title:"Confirm payment",body:"Enter any requested tender details and submit. Wait for a success result before handing over goods."},
- {title:"Review the receipt",body:"Check the receipt details and print if needed. Keep the receipt number for later sales lookup or a return."},
+ {title:"Review and print the receipt",body:"Check the receipt and choose Print. A QR code at the bottom contains readable receipt details, item quantities and prices, payment breakdown, and totals. Keep the receipt number for returns or later lookup."},
  {title:"Handle declined or interrupted payment",body:"Do not assume a failed payment completed. Check the transaction status before retrying to avoid duplicate payment."},
 ],[{title:"Tax calculation",body:"Checkout uses each product's tax rate or the store's active default. Tax-exclusive products add tax on top of their entered price; tax-inclusive products extract tax from the entered price."},{title:"Offline sales",body:"Offline POS is not enabled on Starter or Premium. If disconnected, checkout cannot save an offline draft on those plans. Enterprise is configured for offline POS.",type:"warning"}]);
 
@@ -207,7 +207,7 @@ page("06 • Sell","Held sales","Park an unfinished cart and resume it later.",{
 ]);
 
 page("07 • Catalogue","Products: browse and maintain","Search products, manage records, and create product backups.",{title:"Products catalogue",labels:["All products","Category tabs","Search name SKU barcode","Download backup","Import products","Add product","Edit/Delete"],caption:"The catalogue shows product identity, stock, prices, status, and permitted actions."},[
- {title:"Browse the catalogue",body:"Open Products. Use category tabs or search by product name, SKU, or barcode."},
+ {title:"Browse the catalogue",body:"Open Products. Use category tabs or search by product name, SKU, or barcode. The catalogue displays 15 products per page. Use Previous and Next to move through results; changing search or category returns to page one."},
  {title:"Add a product",body:"Choose Add product, enter name, optional SKU and barcode, cost price, selling price, opening quantity, and optional expiry date; then create the product."},
  {title:"Edit or delete",body:"Use the row action if your account has edit/delete permission. Deleted products are removed from the active catalogue but retained for historical sales."},
  {title:"Download a backup",body:"Choose Download product backup. The workbook includes non-deleted products, including inactive entries, and store-level product and stock details."},
@@ -256,15 +256,17 @@ page("13 • Purchasing","Purchase orders","Review purchase-order status and tot
  {title:"Follow up operationally",body:"For creating, receiving, editing, or cancelling orders, use the workflow available in your deployed version; these controls are not implemented on the current list page."},
 ],[{title:"Current limitation",body:"The current page is read-only despite a purchase-order manage permission existing in the access model. This manual does not describe create/receive actions that are not present in the app.",type:"warning"}]);
 
-page("14 • Checkout follow-up","Sales","Search and inspect completed transactions.",{title:"Sales list and detail",labels:["Date range","Search receipt","Cashier filter","Sales list","Payment","Receipt details"],caption:"Visible transactions depend on sales-view permissions and cashier scope."},[
+page("14 • Checkout follow-up","Sales","Search, inspect, and reprint completed transactions.",{title:"Sales list and detail",labels:["Date range","Search receipt","Cashier filter","Sales list","Payment","Receipt details","Print receipt"],caption:"Visible transactions depend on sales-view permissions and cashier scope."},[
  {title:"Open Sales",body:"Set the date range or search by receipt/customer details. Apply available cashier/status filters."},
  {title:"Select a transaction",body:"Open a row to inspect products, quantities, amounts, payment method, and receipt details."},
+ {title:"Reprint a receipt",body:"If your account has receipt reprint permission, choose Print receipt in the transaction details. The original saved receipt is loaded and printed with its itemized QR code. Reprints are recorded in the audit log."},
  {title:"Use the receipt number",body:"Keep the receipt number available for support and returns. Search it from the Returns workflow when processing a return."},
  {title:"Export if available",body:"Use an export control only if it is visible for your account. Report exports are covered in the Reports section."},
 ],[{title:"Scope",body:"Cashiers typically see their own sales; users with Sales View All can see store-wide sales. The page currently returns a capped transaction list."}]);
 
-page("15 • Customer care","Returns","Create a return, review approvals, and complete an eligible refund.",{title:"Returns workspace",labels:["Receipt lookup","Returned items","Quantity","Reason","Refund method","Submit","Approve/Reject"],caption:"Returns and refunds are available on Premium and Enterprise plans."},[
+page("15 • Customer care","Returns","Create a return, review approvals, and complete an eligible refund.",{title:"Returns workspace",labels:["Receipt lookup","24-hour window","Returned items","Quantity","Reason","Refund method","Submit","Approve/Reject"],caption:"Returns and refunds are available on Premium and Enterprise plans."},[
  {title:"Find the sale",body:"Choose New Return and enter the original receipt number. The system loads eligible items and remaining returnable quantities."},
+ {title:"Check the return deadline",body:"A product can only be submitted for return within 24 hours of purchase. The limit is checked again by the server when the request is submitted. Requests submitted on time may be approved or completed later."},
  {title:"Select return items",body:"Choose items and quantities. Do not exceed available quantity; completed or already-returned units are excluded."},
  {title:"Enter return details",body:"Choose a reason and refund method, and confirm whether returned stock should be restocked."},
  {title:"Submit for review",body:"Submit the return. It may remain pending until an authorized approver approves or rejects it."},
@@ -290,7 +292,7 @@ page("18 • Analysis","Reports","Filter store performance and export or print s
  {title:"Apply filters",body:"Use payment method, cashier, product, or category filters to narrow the report."},
  {title:"Read the summary",body:"Review revenue, transaction counts, tax/payment summaries, profit where permitted, trends, and top products."},
  {title:"Export filtered data",body:"Choose CSV/Excel to download a spreadsheet-compatible CSV of the filtered data."},
- {title:"Print or save as PDF",body:"Choose Print/PDF and use the browser print dialog to print or select Save as PDF."},
+ {title:"Print or save as PDF",body:"Choose Print/PDF and use the browser print dialog to print or select Save as PDF. The printout uses a report-details table for period, date range, cashier, product, and payment method, followed by metrics for sales, transactions, units sold, refunds, cost of goods sold, and gross profit."},
 ],[{title:"Plan note",body:"Starter is described in plan configuration as one-month reporting without yearly history. Confirm the current subscription page for the live plan details; report-range enforcement may vary by deployment."},{title:"Data scope",body:"Users without Sales View All see their own sales rather than the full store."}]);
 
 page("19 • Configuration","Settings and tax rates","Maintain store details and checkout tax configuration.",{title:"Settings areas",labels:["Store details","Receipt details","Tax rates","Default rate","Active/inactive","Save"],caption:"Management controls appear only with settings-manage permission."},[
@@ -363,10 +365,16 @@ page("28 • Troubleshooting","Common issues and quick checks","Use these checks
  {title:"Need help",body:"Submit a support ticket with steps, expected/actual result, store, role, approximate time, and a screenshot that does not expose passwords or sensitive payment details."},
 ]);
 
+page("29 • Public website","Contact VidyPOS","Find the team’s contact information or send a message from the public contact page.",{title:"Contact page",labels:["Email","Phone","Location","Your name","Email address","Phone (optional)","Message","Send message"],caption:"Contact form submissions are emailed to the VidyPOS team."},[
+ {title:"Open Contact",body:"From the public home page, choose Contact in the navigation or footer. The page is available before signing in."},
+ {title:"Send a message",body:"Enter your name, email address, and message. Phone is optional. Choose Send message and wait for the success confirmation."},
+ {title:"Contact directly",body:"Email hello@vidyposgh.com or call 059 892 5563. The location is Adenta Barrier, Near ECG substation."},
+],[{title:"If the form cannot send",body:"Check that the site has working SMTP settings. You can contact the team directly by email or phone while delivery is restored."}]);
+
 // Add the directory/role reference and final page.
 header("Reference","Page directory and role guide","Use this index to find the page associated with your task.");
 const directory=[
- ["Overview","Dashboard"],["Sell","Make a Sale; Held Sales"],["Catalogue","Products; Import; Customers"],["Stock","Inventory; Expiry/Batches"],["Purchasing","Suppliers; Purchase Orders"],["Checkout follow-up","Sales; Returns"],["Workforce","Employees; Shifts"],["Analysis","Reports; Audit Logs"],["Configuration","Settings; Profile; Subscription"],["Support","Help & Support"],["Platform admin","Platform Dashboard; Metrics; Reports; Support; System Staff"]
+ ["Overview","Dashboard"],["Sell","Make a Sale; Held Sales"],["Catalogue","Products; Import; Customers"],["Stock","Inventory; Expiry/Batches"],["Purchasing","Suppliers; Purchase Orders"],["Checkout follow-up","Sales; Returns"],["Workforce","Employees; Shifts"],["Analysis","Reports; Audit Logs"],["Configuration","Settings; Profile; Subscription"],["Support","Help & Support; Contact VidyPOS"],["Platform admin","Platform Dashboard; Metrics; Reports; Support; System Staff"]
 ];
 let dy=doc.y;
 directory.forEach((row,i)=>{if(i%2===0)doc.rect(LEFT,dy-3,CONTENT_W,25).fill(C.pale);text(row[0],LEFT+8,dy+3,{size:8,font:"Helvetica-Bold",width:142});text(row[1],LEFT+155,dy+3,{size:8,color:C.muted,width:335});dy+=25;});

@@ -68,24 +68,26 @@ export function ProductForm({ mode = "retail" }: { mode?: "retail" | "restaurant
           <CardHeader><CardTitle>{isRestaurant ? "Menu item details" : isSalon ? "Salon service or product details" : "Product details"}</CardTitle></CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
             <Input label={isRestaurant ? "Menu item name" : isSalon ? "Service or product name" : "Product name"} name="name" required placeholder={isRestaurant ? "e.g. Jollof rice" : isSalon ? "e.g. Hair styling" : "e.g. Milo 400g"} />
-            <Input label={isRestaurant || isSalon ? "Item code (optional)" : "SKU (optional)"} name="sku" placeholder={isRestaurant ? "e.g. JOLLOF-01" : isSalon ? "e.g. HAIR-STYLE" : "e.g. MILO-400"} />
-            <Input
-              label="Barcode"
-              name="barcode"
-              placeholder="Optional barcode"
-              value={barcode}
-              onChange={(event) => setBarcode(event.target.value)}
-              rightSlot={scannerEnabled ? (
-                <button
-                  type="button"
-                  onClick={() => setCameraScannerOpen(true)}
-                  aria-label="Scan barcode with camera"
-                  className="flex items-center justify-center rounded-md p-1 text-fg-muted transition hover:text-fg"
-                >
-                  <Camera className="size-4" />
-                </button>
-              ) : undefined}
-            />
+            {!nonStock && <Input label={isRestaurant || isSalon ? "Item code (optional)" : "SKU (optional)"} name="sku" placeholder={isRestaurant ? "e.g. JOLLOF-01" : isSalon ? "e.g. HAIR-STYLE" : "e.g. MILO-400"} />}
+            {!nonStock && (
+              <Input
+                label="Barcode"
+                name="barcode"
+                placeholder="Optional barcode"
+                value={barcode}
+                onChange={(event) => setBarcode(event.target.value)}
+                rightSlot={scannerEnabled ? (
+                  <button
+                    type="button"
+                    onClick={() => setCameraScannerOpen(true)}
+                    aria-label="Scan barcode with camera"
+                    className="flex items-center justify-center rounded-md p-1 text-fg-muted transition hover:text-fg"
+                  >
+                    <Camera className="size-4" />
+                  </button>
+                ) : undefined}
+              />
+            )}
             {!nonStock && <Input label={isRestaurant ? "Ingredient cost (GHS)" : "Cost price (GHS)"} name="costPrice" type="number" min="0" step="0.01" required placeholder="0.00" />}
             <Input
               label={nonStock ? (isSalon ? "Service fee before tax (GHS)" : "Service charge before tax (GHS)") : isRestaurant ? "Menu price before tax (GHS)" : isSalon ? "Product price before tax (GHS)" : "Selling price before tax (GHS)"}

@@ -8,9 +8,15 @@ import { CartLine } from "@/components/pos/CartLine";
 import { formatPercent } from "@/lib/utils/format";
 import { subtractMoney } from "@/lib/utils/money";
 import type { Cart } from "@/hooks/useCart";
+import type { RestaurantOrderType } from "@/lib/validations/sale.schema";
 
 export interface CartPanelProps {
   cart: Cart;
+  isRestaurant: boolean;
+  orderType: RestaurantOrderType;
+  tableNumber: string;
+  onOrderTypeChange: (value: RestaurantOrderType) => void;
+  onTableNumberChange: (value: string) => void;
   selectedProductId: string | null;
   onSelectLine: (productId: string) => void;
   onOpenCustomer: () => void;
@@ -27,6 +33,11 @@ export interface CartPanelProps {
 
 export function CartPanel({
   cart,
+  isRestaurant,
+  orderType,
+  tableNumber,
+  onOrderTypeChange,
+  onTableNumberChange,
   selectedProductId,
   onSelectLine,
   onOpenCustomer,
@@ -44,7 +55,7 @@ export function CartPanel({
   const empty = lines.length === 0;
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-card">
+    <div className="flex h-full min-h-0 flex-col bg-card max-sm:h-auto">
       <div className="flex items-center gap-2 border-b border-line px-3 py-3">
         <ShoppingCart className="size-4 shrink-0 text-fg-muted" />
         <p className="flex-1 text-sm font-semibold text-fg">
@@ -73,24 +84,56 @@ export function CartPanel({
         {canSelectCustomer && <button type="button" onClick={onOpenCustomer} className="shrink-0 text-xs text-brand-600 dark:text-brand-400">{customer ? "Change" : "Add"}</button>}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      {isRestaurant && (
+        <div className="grid grid-cols-2 gap-2 border-b border-line px-3 py-2.5">
+          <label className="grid gap-1 text-xs font-medium text-fg-secondary">
+            Order type
+            <select
+              value={orderType}
+              onChange={(event) => onOrderTypeChange(event.target.value as RestaurantOrderType)}
+              className="h-10 min-w-0 rounded-lg border border-line-strong bg-card px-2 text-sm text-fg"
+              aria-label="Order type"
+            >
+              <option value="DINE_IN">Dine in</option>
+              <option value="TAKEAWAY">Takeaway</option>
+              <option value="DELIVERY">Delivery</option>
+            </select>
+          </label>
+          {orderType === "DINE_IN" && (
+            <label className="grid gap-1 text-xs font-medium text-fg-secondary">
+              Table number
+              <input
+                value={tableNumber}
+                onChange={(event) => onTableNumberChange(event.target.value)}
+                placeholder="e.g. 4"
+                maxLength={40}
+                className="h-10 min-w-0 rounded-lg border border-line-strong bg-card px-2 text-sm text-fg placeholder:text-fg-muted"
+                aria-label="Table number"
+              />
+            </label>
+          )}
+        </div>
+      )}
+
+      <div className="min-h-0 flex-1 overflow-y-auto max-sm:flex-none">
         {empty ? (
           <EmptyState
             icon={<ShoppingCart className="size-6" />}
             title="Cart is empty"
             message="Scan a barcode or tap a product to begin."
+            className="max-sm:py-6"
           />
         ) : (
           <ul className="divide-y divide-[var(--border-base)]">
             {lines.map((line) => (
               <CartLine
-                key={line.productId}
+                key={line.lineId}
                 line={line}
-                selected={line.productId === selectedProductId}
-                onSelect={() => onSelectLine(line.productId)}
-                onAdjust={(delta) => cart.adjustQuantity(line.productId, delta)}
-                onSetQuantity={(quantity) => cart.setQuantity(line.productId, quantity)}
-                onRemove={() => cart.removeLine(line.productId)}
+                selected={line.lineId === selectedProductId}
+                onSelect={() => onSelectLine(line.lineId)}
+                onAdjust={(delta) => cart.adjustQuantity(line.lineId, delta)}
+                onSetQuantity={(quantity) => cart.setQuantity(line.lineId, quantity)}
+                onRemove={() => cart.removeLine(line.lineId)}
               />
             ))}
           </ul>
