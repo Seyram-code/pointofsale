@@ -87,7 +87,7 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
 
       {/* Form panel */}
       <main className="flex flex-1 items-center justify-center px-4 py-8 sm:px-6 sm:py-10">
-        <div className="w-full max-w-md">{children}</div>
+        <div className="w-full max-w-md xl:max-w-2xl">{children}</div>
       </main>
     </div>
   );

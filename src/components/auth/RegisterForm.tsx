@@ -84,29 +84,29 @@ export function RegisterForm({ platformMode = false }: { platformMode?: boolean 
   return (
     <form onSubmit={submit} className="space-y-4">
       <Card>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Input label="Business name" name="businessName" required placeholder="e.g. Adom Supermarket" />
-          <div>
+        <CardContent className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <Input label="Business name" name="businessName" required placeholder="e.g. Adom Supermarket" containerClassName="xl:col-span-2" />
+          <div className="min-w-0">
             <label className="mb-1 block text-sm font-medium text-fg">Business type</label>
             <select name="businessType" defaultValue="SUPERMARKET" className="w-full rounded-lg border border-line bg-card px-3 py-2 text-sm text-fg outline-none focus:border-brand-600">
               {BUSINESS_TYPES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </div>
-          <Input label="Business registration number" name="businessRegistrationNumber" placeholder="Optional" />
           <Input label="Business phone" name="businessPhone" required placeholder="+233 24 000 0000" />
           <Input label="Business email" name="businessEmail" type="email" required placeholder="hello@company.com" />
-          <Input label="Business address" name="address" required placeholder="Street or plot" containerClassName="sm:col-span-2" />
+          <Input label="Business registration number" name="businessRegistrationNumber" placeholder="Optional" />
+          <Input label="Business address" name="address" required placeholder="Street or plot" containerClassName="xl:col-span-2" />
           <Input label="City" name="city" required placeholder="Accra" />
           <RegionSelect label="Region" name="region" required />
           <Input label="Country" name="country" required defaultValue="Ghana" placeholder="Ghana" />
           <Input label="Logo URL" name="logoUrl" placeholder="https://example.com/logo.png" />
           <Input label="Currency" name="currency" required defaultValue="GHS" />
-          <Input label="Tax settings" name="taxSettings" placeholder="VAT 15%" containerClassName="sm:col-span-2" />
+          <Input label="Tax settings" name="taxSettings" placeholder="VAT 15%" />
 
           <Input label="Owner full name" name="ownerName" required placeholder="Owner or manager" />
           <Input label="Owner email" name="email" type="email" required />
           <Input label="Owner phone" name="phone" required placeholder="Owner phone" />
-          <Input label="Password" name="password" type="password" required hint="Use uppercase, lowercase, a number and a symbol" containerClassName="sm:col-span-2" />
+          <Input label="Password" name="password" type="password" required hint="Use uppercase, lowercase, a number and a symbol" />
         </CardContent>
       </Card>
       <div><p className="mb-2 text-sm font-medium text-fg-secondary">Choose your plan</p><div className="grid gap-2">
@@ -122,7 +122,7 @@ export function RegisterForm({ platformMode = false }: { platformMode?: boolean 
           </div>
         </div>
       )}
-      <Button type="submit" fullWidth loading={saving} rightIcon={<ArrowRight className="size-4" />}>{platformMode ? "Register business" : "Start 14-day free trial"}</Button>
+      <Button type="submit" fullWidth loading={saving} className="bg-brand-500 text-white hover:bg-brand-400 dark:bg-brand-400 dark:text-brand-950 dark:hover:bg-brand-300" rightIcon={<ArrowRight className="size-4" />}>{platformMode ? "Register business" : "Start 14-day free trial"}</Button>
       {!platformMode && <p className="text-center text-sm text-fg-muted">Already have an account? <Link href="/login" className="font-medium text-brand-600 hover:underline">Sign in</Link></p>}
     </form>
   );

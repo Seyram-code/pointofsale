@@ -207,7 +207,7 @@ export function EmployeeManagement({ initialEmployees, canManageAdmins, isRestau
               <p className="text-sm text-fg-muted sm:col-span-2">The sign-in code is generated when you enter the employee&apos;s name and cannot be edited.</p>
               {error && <p role="alert" className="sm:col-span-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-danger dark:bg-red-950/40">{error}</p>}
               <div className="flex gap-2 sm:col-span-2">
-                <Button type="submit" loading={busy} leftIcon={<Save className="size-4" />}>Create account</Button>
+                <Button type="submit" loading={busy} className="bg-brand-500 text-white hover:bg-brand-400 dark:bg-brand-400 dark:text-brand-950 dark:hover:bg-brand-300" leftIcon={<Save className="size-4" />}>Create account</Button>
                 <Button type="button" variant="outline" onClick={closeCreateForm} leftIcon={<X className="size-4" />}>Cancel</Button>
               </div>
             </form>

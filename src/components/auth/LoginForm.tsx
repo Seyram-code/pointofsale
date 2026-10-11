@@ -177,7 +177,7 @@ export function LoginForm() {
           </Button>
           <button
             type="button"
-            className="w-full py-1 text-sm font-medium text-brand-600 hover:underline disabled:opacity-50"
+            className="w-full py-1 text-sm font-medium text-brand-700 hover:underline disabled:opacity-50 dark:text-brand-300"
             disabled={loading}
             onClick={() => {
               setMode((current) => current === "password" ? "staff" : "password");
