@@ -110,6 +110,7 @@ export class PaystackMomoProvider implements PaymentProvider {
         reference: request.reference,
         email: request.momo.email,
         channels: ["mobile_money"],
+        ...(request.settlementSubaccountCode ? { subaccount: request.settlementSubaccountCode } : {}),
         callback_url: request.callbackUrl ?? `${getAppUrl()}/pos${request.saleId ? `?payment_sale=${encodeURIComponent(request.saleId)}` : ""}`,
         metadata: {
           sale_id: request.saleId,

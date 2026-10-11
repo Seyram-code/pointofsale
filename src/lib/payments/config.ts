@@ -27,6 +27,11 @@ export function isPaystackMethod(method: "CARD" | "MOMO") {
   return momoConfig().provider === "paystack";
 }
 
+export function isLivePaystackMethod(method: "CARD" | "MOMO") {
+  if (method === "CARD") return cardPaymentDriver() === "live" && isPaystackMethod(method);
+  return momoPaymentDriver() === "live" && isPaystackMethod(method);
+}
+
 export interface MomoConfig {
   provider: string;
   baseUrl?: string;

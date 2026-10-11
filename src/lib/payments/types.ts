@@ -61,6 +61,8 @@ export interface PaymentRequest {
   cashierId: string;
   saleId?: string;
   callbackUrl?: string;
+  /** Shop settlement destination for POS payments; omitted for platform subscriptions. */
+  settlementSubaccountCode?: string;
   metadata?: Record<string, string>;
   cash?: CashDetails;
   momo?: MomoDetails;

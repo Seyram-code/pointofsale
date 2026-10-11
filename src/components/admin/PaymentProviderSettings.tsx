@@ -5,7 +5,7 @@ import { CreditCard, LoaderCircle } from "lucide-react";
 import { api, ApiClientError } from "@/lib/api/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 
-export function PaymentProviderSettings({ initialPaystackEnabled, canManage }: { initialPaystackEnabled: boolean; canManage: boolean }) {
+export function PaymentProviderSettings({ initialPaystackEnabled, settlementConfigured, canManage }: { initialPaystackEnabled: boolean; settlementConfigured: boolean; canManage: boolean }) {
   const [enabled, setEnabled] = useState(initialPaystackEnabled);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -33,15 +33,16 @@ export function PaymentProviderSettings({ initialPaystackEnabled, canManage }: {
           <div>
             <p className="font-medium text-fg">Paystack payments</p>
             <p className="mt-1 max-w-xl text-sm text-fg-muted">Allow customers to pay by online card or Paystack Mobile Money checkout. Cash and Ghana POS terminal payments are not affected.</p>
+            {enabled && !settlementConfigured && <p className="mt-1 text-xs text-warning">Setup required: online checkout is blocked until this shop connects a verified settlement account.</p>}
           </div>
           <label className="inline-flex shrink-0 items-center gap-3 text-sm font-medium text-fg">
-            <span>{enabled ? "Enabled" : "Disabled"}</span>
+            <span>{enabled && !settlementConfigured ? "Setup required" : enabled ? "Enabled" : "Disabled"}</span>
             <input
               type="checkbox"
               role="switch"
               aria-label="Enable Paystack payments"
-              checked={enabled}
-              disabled={!canManage || saving}
+              checked={enabled && settlementConfigured}
+              disabled={!canManage || saving || !settlementConfigured}
               onChange={(event) => void updateEnabled(event.target.checked)}
               className="size-5 accent-brand-600 disabled:opacity-60"
             />

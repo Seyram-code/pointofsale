@@ -199,6 +199,13 @@ model Store {
   receiptFooter              String?
   logoUrl                    String?
   taxSettings                String?
+  paystackSubaccountCode     String?  @unique @db.VarChar(80)
+  paystackSettlementStatus   String?  @db.VarChar(32)
+  paystackSettlementBankCode String?  @db.VarChar(32)
+  paystackSettlementBankName String?  @db.VarChar(120)
+  paystackSettlementName     String?  @db.VarChar(160)
+  paystackSettlementLast4    String?  @db.VarChar(4)
+  paystackSettlementVerifiedAt DateTime?
   isActive                   Boolean  @default(true)
   emailVerifiedAt            DateTime? @default(now())
   activationCodeHash         String?  @db.VarChar(64)

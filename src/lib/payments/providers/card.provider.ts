@@ -84,6 +84,7 @@ export class LiveCardProvider implements PaymentProvider {
         reference: request.reference,
         email: request.card.email,
         channels: ["card"],
+        ...(request.settlementSubaccountCode ? { subaccount: request.settlementSubaccountCode } : {}),
         callback_url: request.callbackUrl ?? `${getAppUrl()}/pos${request.saleId ? `?payment_sale=${encodeURIComponent(request.saleId)}` : ""}`,
         metadata: { sale_id: request.saleId, store_id: request.storeId, ...request.metadata },
       }),

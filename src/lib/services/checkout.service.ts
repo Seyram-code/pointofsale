@@ -72,7 +72,7 @@ function toPaymentRequest(
  *   2. call the provider(s)
  *   3. finalise (or fail) in a second transaction
  */
-export async function checkout(input: CheckoutInput, context: SaleContext & { appUrl?: string }): Promise<CheckoutResult> {
+export async function checkout(input: CheckoutInput, context: SaleContext & { appUrl?: string; settlementSubaccountCode?: string }): Promise<CheckoutResult> {
   if (context.businessType === "RESTAURANT") {
     if (!input.orderType) throw ApiError.badRequest("Choose an order type");
   }
@@ -91,6 +91,7 @@ export async function checkout(input: CheckoutInput, context: SaleContext & { ap
     const provider = getPaymentProvider(row.input.method);
     try {
       const paymentRequest = toPaymentRequest(row.input, context, receiptNumber, saleId, row.id);
+      paymentRequest.settlementSubaccountCode = context.settlementSubaccountCode;
       if (context.appUrl) {
         paymentRequest.callbackUrl = `${context.appUrl}/pos?payment_sale=${encodeURIComponent(saleId)}`;
       }
