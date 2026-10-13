@@ -71,10 +71,15 @@ async function paystackRequest<T>(path: string, init: RequestInit = {}): Promise
 
 export async function listPaystackSettlementBanks() {
   const banks = await paystackRequest<PaystackBank[]>("/bank?country=ghana&type=ghipss&perPage=100");
-  return banks
+  const activeBanks = banks
     .filter((bank) => bank.active !== false && bank.code && bank.name)
     .map((bank) => ({ code: String(bank.code), name: String(bank.name) }))
     .sort((left, right) => left.name.localeCompare(right.name));
+  const uniqueBanks = new Map<string, (typeof activeBanks)[number]>();
+  for (const bank of activeBanks) {
+    if (!uniqueBanks.has(bank.code)) uniqueBanks.set(bank.code, bank);
+  }
+  return [...uniqueBanks.values()];
 }
 
 export async function verifyPaystackSettlementAccount(bankCode: string, accountNumber: string) {

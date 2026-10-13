@@ -532,18 +532,19 @@ export async function refreshPaymentStatus(saleId: string, context: SaleContext)
   }
 
   const refreshed = await prisma.payment.findMany({ where: { saleId }, select: { id: true, method: true, status: true, amount: true, failureReason: true } });
-  if (refreshed.some((payment) => payment.status === "FAILED" || payment.status === "CANCELLED")) {
+  const hasFailedPayment = refreshed.some((payment) => payment.status === "FAILED" || payment.status === "CANCELLED");
+  if (hasFailedPayment) {
     await releaseSaleStock(saleId, context);
   }
   const allSettled = refreshed.every((payment) => payment.status === "SUCCESSFUL");
-  const failedOrderItems = refreshed.some((payment) => payment.status === "FAILED" || payment.status === "CANCELLED")
+  const failedOrderItems = hasFailedPayment
     ? await getSaleOrderItems(sale.id, sale.items.map((item) => ({ id: item.id, productId: item.productId, sku: item.sku, quantity: Number(item.quantity) })))
     : undefined;
 
   const base: CheckoutResult = {
     saleId,
     receiptNumber: sale.receiptNumber,
-    status: allSettled ? "COMPLETED" : refreshed.some((p) => p.status === "FAILED") ? "FAILED" : "AWAITING_PAYMENT",
+    status: allSettled ? "COMPLETED" : hasFailedPayment ? "FAILED" : "AWAITING_PAYMENT",
     total: Number(sale.total),
     amountPaid: 0,
     changeDue: 0,
