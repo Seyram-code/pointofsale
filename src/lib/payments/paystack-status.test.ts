@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { isSuccessfulPaystackCard, isSuccessfulPaystackMomo, mapPaystackStatus, mapPaystackVerificationStatus, paystackFailureReason } from "@/lib/payments/paystack-status";
 
-test("Paystack declined, abandoned, and cancelled transactions are terminal failures", () => {
-  for (const status of ["failed", "abandoned", "cancelled", "canceled"]) {
+test("Paystack failed and cancelled transactions are terminal failures", () => {
+  for (const status of ["failed", "cancelled", "canceled"]) {
     assert.equal(mapPaystackStatus(status), "FAILED");
   }
 });
@@ -11,6 +11,7 @@ test("Paystack declined, abandoned, and cancelled transactions are terminal fail
 test("Paystack success and in-flight statuses are distinguished", () => {
   assert.equal(mapPaystackStatus("success"), "SUCCESSFUL");
   assert.equal(mapPaystackStatus("ongoing"), "PROCESSING");
+  assert.equal(mapPaystackStatus("abandoned"), "PROCESSING");
 });
 
 test("Paystack verification API errors stay in flight until a transaction status is confirmed", () => {
@@ -20,8 +21,8 @@ test("Paystack verification API errors stay in flight until a transaction status
 });
 
 test("Paystack terminal failures have actionable reasons", () => {
-  assert.match(paystackFailureReason("abandoned") ?? "", /abandoned before completion/);
   assert.match(paystackFailureReason("failed") ?? "", /payment failed/);
+  assert.equal(paystackFailureReason("abandoned"), undefined);
   assert.equal(paystackFailureReason("ongoing"), undefined);
 });
 

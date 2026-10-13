@@ -1,6 +1,6 @@
 import type { PaymentState } from "@/lib/payments/types";
 
-const FAILED_STATUSES = new Set(["abandoned", "cancelled", "canceled", "failed"]);
+const FAILED_STATUSES = new Set(["cancelled", "canceled", "failed"]);
 
 export function mapPaystackStatus(status: string): PaymentState {
   const normalized = status.toLowerCase();
@@ -36,8 +36,6 @@ export function paystackFailureReason(status: string): string | undefined {
     case "cancelled":
     case "canceled":
       return "The Paystack payment was cancelled.";
-    case "abandoned":
-      return "The Paystack payment was abandoned before completion.";
     case "failed":
       return "Paystack reports the payment failed.";
     default:
