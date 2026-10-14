@@ -47,7 +47,7 @@ export async function holdSale(input: HoldSaleInput, context: SaleContext): Prom
 
         if (input.resumeSaleId) {
           const draft = await tx.sale.findFirst({
-            where: { id: input.resumeSaleId, storeId: context.storeId, status: "DRAFT" },
+            where: { id: input.resumeSaleId, storeId: context.storeId, status: "DRAFT", payments: { none: {} } },
             select: { id: true, receiptNumber: true },
           });
           if (!draft) throw ApiError.notFound("Held sale");
@@ -108,7 +108,7 @@ export async function holdSale(input: HoldSaleInput, context: SaleContext): Prom
 
 export async function listHeldSales(storeId: string, cashierId?: string) {
   const drafts = await prisma.sale.findMany({
-    where: { storeId, status: "DRAFT", ...(cashierId ? { cashierId } : {}) },
+    where: { storeId, status: "DRAFT", payments: { none: {} }, ...(cashierId ? { cashierId } : {}) },
     orderBy: { createdAt: "desc" },
     take: 20,
     select: {
@@ -138,7 +138,7 @@ export async function listHeldSales(storeId: string, cashierId?: string) {
 
 export async function getHeldSale(storeId: string, saleId: string) {
   const draft = await prisma.sale.findFirst({
-    where: { id: saleId, storeId, status: "DRAFT" },
+    where: { id: saleId, storeId, status: "DRAFT", payments: { none: {} } },
     select: {
       id: true,
       receiptNumber: true,

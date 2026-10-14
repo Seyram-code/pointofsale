@@ -50,10 +50,24 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return ok({ received: true, matched: true, verified: false });
     }
 
+    const lateSuccess = event.state === "SUCCESSFUL" &&
+      payment.sale.status === "VOIDED" &&
+      payment.status !== "SUCCESSFUL";
+
     if (payment.status !== "SUCCESSFUL") {
       await prisma.payment.update({
         where: { id: payment.id },
         data: { status: event.state, paidAt: event.state === "SUCCESSFUL" ? new Date() : null },
+      });
+    }
+
+    if (lateSuccess) {
+      await recordAudit({
+        action: "UPDATE",
+        entity: "Payment",
+        entityId: payment.id,
+        storeId: payment.sale.storeId,
+        summary: `Late ${providerKey} payment succeeded after the sale was voided; review for refund`,
       });
     }
 

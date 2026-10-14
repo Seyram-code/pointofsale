@@ -59,7 +59,9 @@ The current deployment uses mock payments. The POS can be tested without live ga
 
 ## 6. Reconcile pending Paystack payments
 
-Paystack webhooks and the open POS checkout reconcile payments immediately. Configure a Hostinger cron job to call the fallback endpoint once per minute so pending payments are still reconciled if the till closes before the provider callback arrives.
+**Do not enable live Paystack payments until the reconciliation cron job is configured and tested.** Paystack webhooks and the open POS checkout reconcile payments immediately, but the scheduled call is required to recover payments after the till closes or loses connection.
+
+In Hostinger hPanel, open **Advanced → Cron Jobs** and create a job with the schedule set to **Every minute** (`* * * * *`). Use the command below, replacing the domain and bearer-secret placeholders with the production HTTPS domain and the exact `CRON_SECRET` configured in the Node.js app. Keep the secret in the private cron command configuration; never put it in the URL, source code, or a committed file.
 
 Request:
 
@@ -69,7 +71,17 @@ curl --fail --silent --show-error \
 	https://your-domain.example/api/cron/reconcile-payments
 ```
 
-The endpoint checks pending CARD and MoMo payments at least two minutes old, up to 50 per run. It releases stock only after Paystack verification confirms failure/cancellation, and completes the sale and receipt only after a successful amount-matched verification. Transient errors remain pending for a later run. Store `CRON_SECRET` in Hostinger environment variables and configure the cron service to send it as the bearer token; never place it in a public URL.
+For the Hostinger job, use this complete command template (replace both placeholders):
+
+```bash
+curl --fail --silent --show-error --max-time 50 \
+	-H "Authorization: Bearer REPLACE_WITH_CRON_SECRET" \
+	https://your-domain.example/api/cron/reconcile-payments
+```
+
+The endpoint checks pending CARD and MoMo payments at least one minute old, up to 50 per run. It completes the sale and receipt only after a successful amount-matched verification. A verified unresolved Paystack payment is marked failed and its stock reservation is released after one minute; this timeout does not prove that a MoMo debit will never arrive. The POS Failed sales list also lets staff explicitly release a still-unresolved payment after rechecking its status and confirming a warning. A late successful webhook is recorded in the audit log for refund review. Transient verification API errors remain pending for a later run.
+
+After saving the job, run the command once from hPanel and confirm it returns HTTP 200 with a JSON response containing `"success": true`. An unauthorized response means the bearer secret does not match `CRON_SECRET`; a 503 means the app has no `CRON_SECRET` configured. Confirm the job's execution history shows a successful run every minute. This fallback does not run on a developer's local machine unless they configure a scheduler to call that local server.
 
 ## 7. Super Admin email alerts
 

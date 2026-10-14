@@ -14,6 +14,7 @@ import { CartPanel } from "@/components/pos/CartPanel";
 import { CustomerPicker } from "@/components/pos/CustomerPicker";
 import { DiscountDialog } from "@/components/pos/DiscountDialog";
 import { HeldSalesDialog } from "@/components/pos/HeldSalesDialog";
+import { FailedSalesDialog } from "@/components/pos/FailedSalesDialog";
 import { PaymentDialog, type CheckoutPaymentInput, type CheckoutResponse } from "@/components/pos/PaymentDialog";
 import { MenuOptionsDialog, type MenuOptionChoice } from "@/components/pos/MenuOptionsDialog";
 import { CameraBarcodeScanner } from "@/components/pos/CameraBarcodeScanner";
@@ -121,6 +122,7 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockCardD
   const [customerOpen, setCustomerOpen] = useState(false);
   const [discountOpen, setDiscountOpen] = useState(false);
   const [heldOpen, setHeldOpen] = useState(false);
+  const [failedSalesOpen, setFailedSalesOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const returnSaleId = searchParams.get("payment_sale");
   const [clearOpen, setClearOpen] = useState(false);
@@ -322,7 +324,7 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockCardD
   );
 
   // Catches hardware scanners even when focus has drifted away from the barcode box.
-  useBarcodeScanner({ onScan: scanBarcode, enabled: scannerEnabled && !checkoutOpen && !customerOpen && !heldOpen });
+  useBarcodeScanner({ onScan: scanBarcode, enabled: scannerEnabled && !checkoutOpen && !customerOpen && !heldOpen && !failedSalesOpen });
 
   const holdSale = useCallback(async () => {
     if (cart.lines.length === 0 || !permissions.canHold) return;
@@ -546,6 +548,9 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockCardD
           <button type="button" onClick={() => setHeldOpen(true)} className="underline hover:text-fg">
             Held sales
           </button>
+          <button type="button" onClick={() => setFailedSalesOpen(true)} className="underline hover:text-fg">
+            Failed sales
+          </button>
         </div>
         <div className="flex items-center gap-2 text-xs text-fg-muted">
           <button
@@ -627,6 +632,13 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockCardD
         </button>
         <button
           type="button"
+          onClick={() => setFailedSalesOpen(true)}
+          className="h-11 shrink-0 rounded-lg border border-line px-3 text-sm text-fg-secondary"
+        >
+          Failed
+        </button>
+        <button
+          type="button"
           onClick={() => setCartOpen(true)}
           className="flex h-11 flex-1 items-center justify-between gap-3 rounded-lg bg-brand-600 px-4 text-white"
         >
@@ -649,6 +661,11 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockCardD
       />
 
       <HeldSalesDialog open={heldOpen} onClose={() => setHeldOpen(false)} onResume={resumeSale} />
+      <FailedSalesDialog
+        open={failedSalesOpen}
+        onClose={() => setFailedSalesOpen(false)}
+        onStockChanged={() => { void loadProducts(); }}
+      />
 
       <MenuOptionsDialog
         open={pendingOptionsProduct !== null}

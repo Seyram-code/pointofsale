@@ -23,7 +23,7 @@ export async function GET(request: Request) {
 
   try {
     const result = await reconcileStalePayments({
-      olderThan: new Date(Date.now() - 2 * 60_000),
+      olderThan: new Date(Date.now() - 60_000),
       limit: 50,
     });
     return NextResponse.json({ success: true, data: result });

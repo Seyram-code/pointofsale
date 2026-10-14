@@ -169,8 +169,9 @@ export class PaystackMomoProvider implements PaymentProvider {
       externalRef,
       amount: Number(data.amount ?? 0) / 100,
       message: status === "abandoned"
-        ? "Paystack has not confirmed this payment. Keep the sale open and verify the debit with Paystack before retrying."
+        ? "Paystack has not confirmed this payment. Verify any debit with Paystack before retrying."
         : undefined,
+      verified,
       failureReason: verified && status === "success" && !isSuccessful
         ? "Verified transaction was not GHS mobile money"
         : paystackFailureReason(status),

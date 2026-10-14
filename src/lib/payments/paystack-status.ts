@@ -1,4 +1,26 @@
-import type { PaymentState } from "@/lib/payments/types";
+import type { PaymentResult, PaymentState } from "@/lib/payments/types";
+
+export const PAYSTACK_UNRESOLVED_TIMEOUT_MS = 60_000;
+
+export function expireUnresolvedPaystackPayment(
+  result: PaymentResult,
+  paymentCreatedAt: Date,
+  now = new Date(),
+): PaymentResult {
+  if (
+    result.verified !== true ||
+    (result.state !== "PENDING" && result.state !== "PROCESSING") ||
+    now.getTime() - paymentCreatedAt.getTime() < PAYSTACK_UNRESOLVED_TIMEOUT_MS
+  ) {
+    return result;
+  }
+
+  return {
+    ...result,
+    state: "FAILED",
+    failureReason: "Paystack did not confirm this payment within 1 minute. Stock was released; verify the transaction before taking another payment.",
+  };
+}
 
 const FAILED_STATUSES = new Set(["cancelled", "canceled", "failed"]);
 

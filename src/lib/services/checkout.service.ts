@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db/prisma";
 import { ApiError } from "@/lib/api/response";
 import { getPaymentProvider } from "@/lib/payments/registry";
 import { PaymentError } from "@/lib/payments/errors";
+import { expireUnresolvedPaystackPayment } from "@/lib/payments/paystack-status";
 import { nextNumber } from "@/lib/services/numbering.service";
 import { DECIMAL_MONEY, DECIMAL_QTY, persistSaleItemOptions, priceCart, saleItemCreateData, type PricedCart } from "@/lib/services/cart.service";
 import { generateReceipt, type ReceiptPayload } from "@/lib/services/receipt.service";
@@ -200,7 +201,7 @@ async function createPendingSale(input: CheckoutInput, context: SaleContext, car
 
     if (input.resumeSaleId) {
       const draft = await tx.sale.findFirst({
-        where: { id: input.resumeSaleId, storeId: context.storeId, status: "DRAFT" },
+        where: { id: input.resumeSaleId, storeId: context.storeId, status: "DRAFT", payments: { none: {} } },
         select: { id: true, receiptNumber: true },
       });
       if (!draft) throw ApiError.notFound("Held sale");
@@ -345,51 +346,61 @@ async function persistPaymentResults(results: Array<{ id: string; result: Paymen
 }
 
 export async function releaseSaleStock(saleId: string, context: Pick<SaleContext, "storeId" | "cashierId">) {
-  await prisma.$transaction(async (tx) => {
-    const voided = await tx.sale.updateMany({
-      where: { id: saleId, storeId: context.storeId, status: "DRAFT" },
-      data: { status: "VOIDED" },
-    });
-    if (voided.count !== 1) return;
+  await prisma.$transaction((tx) =>
+    releaseSaleStockInTransaction(tx, saleId, context, "Failed or cancelled checkout"),
+  );
+}
 
-    const claims = await tx.stockMovement.findMany({
-      where: { referenceType: "SALE_RESERVATION", referenceId: saleId },
-      select: { productId: true, quantity: true, unitCost: true },
-    });
-    const releases = new Map<string, { quantity: number; unitCost: Prisma.Decimal | null }>();
-    for (const claim of claims) {
-      const previous = releases.get(claim.productId);
-      releases.set(claim.productId, {
-        quantity: (previous?.quantity ?? 0) + Math.abs(Number(claim.quantity)),
-        unitCost: previous?.unitCost ?? claim.unitCost,
-      });
-    }
-
-    for (const [productId, release] of releases) {
-      await tx.inventoryLevel.update({
-        where: { storeId_productId: { storeId: context.storeId, productId } },
-        data: { quantity: { increment: DECIMAL_QTY(release.quantity) } },
-      });
-      const level = await tx.inventoryLevel.findUniqueOrThrow({
-        where: { storeId_productId: { storeId: context.storeId, productId } },
-        select: { quantity: true },
-      });
-      await tx.stockMovement.create({
-        data: {
-          storeId: context.storeId,
-          productId,
-          type: "ADJUSTMENT_IN",
-          quantity: DECIMAL_QTY(release.quantity),
-          balanceAfter: level.quantity,
-          unitCost: release.unitCost,
-          referenceType: "SALE_RESERVATION_RELEASE",
-          referenceId: saleId,
-          reason: "Failed or cancelled checkout",
-          performedById: context.cashierId,
-        },
-      });
-    }
+async function releaseSaleStockInTransaction(
+  tx: Prisma.TransactionClient,
+  saleId: string,
+  context: Pick<SaleContext, "storeId" | "cashierId">,
+  reason: string,
+) {
+  const voided = await tx.sale.updateMany({
+    where: { id: saleId, storeId: context.storeId, status: "DRAFT" },
+    data: { status: "VOIDED" },
   });
+  if (voided.count !== 1) return false;
+
+  const claims = await tx.stockMovement.findMany({
+    where: { referenceType: "SALE_RESERVATION", referenceId: saleId },
+    select: { productId: true, quantity: true, unitCost: true },
+  });
+  const releases = new Map<string, { quantity: number; unitCost: Prisma.Decimal | null }>();
+  for (const claim of claims) {
+    const previous = releases.get(claim.productId);
+    releases.set(claim.productId, {
+      quantity: (previous?.quantity ?? 0) + Math.abs(Number(claim.quantity)),
+      unitCost: previous?.unitCost ?? claim.unitCost,
+    });
+  }
+
+  for (const [productId, release] of releases) {
+    await tx.inventoryLevel.update({
+      where: { storeId_productId: { storeId: context.storeId, productId } },
+      data: { quantity: { increment: DECIMAL_QTY(release.quantity) } },
+    });
+    const level = await tx.inventoryLevel.findUniqueOrThrow({
+      where: { storeId_productId: { storeId: context.storeId, productId } },
+      select: { quantity: true },
+    });
+    await tx.stockMovement.create({
+      data: {
+        storeId: context.storeId,
+        productId,
+        type: "ADJUSTMENT_IN",
+        quantity: DECIMAL_QTY(release.quantity),
+        balanceAfter: level.quantity,
+        unitCost: release.unitCost,
+        referenceType: "SALE_RESERVATION_RELEASE",
+        referenceId: saleId,
+        reason,
+        performedById: context.cashierId,
+      },
+    });
+  }
+  return true;
 }
 
 /**
@@ -523,11 +534,12 @@ export async function refreshPaymentStatus(saleId: string, context: SaleContext)
     const provider = getPaymentProvider(payment.method as "CASH" | "MOMO" | "CARD_TERMINAL" | "CARD");
     if (!provider.getStatus) continue;
 
-    const result = await provider.getStatus(payment.externalRef);
+    let result = await provider.getStatus(payment.externalRef);
     if (result.state === "SUCCESSFUL" && Math.abs(result.amount - Number(payment.amount)) >= 0.01) {
       result.state = "PROCESSING";
       result.failureReason = "Provider amount did not match the sale amount";
     }
+    result = expireUnresolvedPaystackPayment(result, payment.createdAt);
     await persistPaymentResults([{ id: payment.id, result }]);
   }
 
@@ -599,6 +611,158 @@ async function getSaleOrderItems(
   });
 }
 
+export async function listFailedPaymentSales(storeId: string, cashierId?: string) {
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const sales = await prisma.sale.findMany({
+    where: {
+      storeId,
+      createdAt: { gte: since },
+      ...(cashierId ? { cashierId } : {}),
+      OR: [
+        { status: "DRAFT", payments: { some: { method: { in: ["MOMO", "CARD"] }, status: { in: ["PENDING", "PROCESSING"] } } } },
+        { status: "VOIDED", payments: { some: { method: { in: ["MOMO", "CARD"] }, status: { in: ["FAILED", "CANCELLED"] } } } },
+      ],
+    },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+    select: {
+      id: true,
+      receiptNumber: true,
+      status: true,
+      total: true,
+      createdAt: true,
+      items: { select: { productName: true, quantity: true } },
+      payments: {
+        where: { method: { in: ["MOMO", "CARD"] } },
+        select: { method: true, status: true, failureReason: true },
+      },
+    },
+  });
+
+  return sales.map((sale) => ({
+    id: sale.id,
+    receiptNumber: sale.receiptNumber,
+    status: sale.status,
+    total: Number(sale.total),
+    createdAt: sale.createdAt,
+    items: sale.items.map((item) => ({ name: item.productName, quantity: Number(item.quantity) })),
+    payments: sale.payments.map((payment) => ({
+      method: payment.method,
+      status: payment.status,
+      failureReason: payment.failureReason,
+    })),
+  }));
+}
+
+export async function checkOrReleaseFailedPaymentSale(
+  saleId: string,
+  context: SaleContext,
+  forceRelease: boolean,
+) {
+  const sale = await prisma.sale.findFirst({
+    where: { id: saleId, storeId: context.storeId },
+    include: { payments: true, items: true },
+  });
+  if (!sale) throw ApiError.notFound("Failed sale");
+
+  if (sale.status === "COMPLETED") {
+    return { status: "COMPLETED" as const, released: false, requiresConfirmation: false };
+  }
+  if (sale.status === "VOIDED") {
+    const alreadyFailed = sale.payments.some(
+      (payment) => (payment.method === "MOMO" || payment.method === "CARD") &&
+        (payment.status === "FAILED" || payment.status === "CANCELLED"),
+    );
+    if (!alreadyFailed) throw ApiError.conflict("This sale was not voided because of a failed hosted payment.");
+    return { status: "FAILED" as const, released: true, requiresConfirmation: false };
+  }
+
+  const pendingPayments = sale.payments.filter(
+    (payment) => payment.status === "PENDING" || payment.status === "PROCESSING",
+  );
+  if (pendingPayments.length === 0 || pendingPayments.some((payment) => !payment.externalRef)) {
+    throw ApiError.conflict("This sale has no unresolved hosted payment to release.");
+  }
+
+  const statusResults: Array<{ payment: (typeof pendingPayments)[number]; result: PaymentResult }> = [];
+  for (const payment of pendingPayments) {
+    const provider = getPaymentProvider(payment.method as "MOMO" | "CARD");
+    if (!provider.getStatus) throw ApiError.conflict("This payment provider cannot verify payment status.");
+    let result = await provider.getStatus(payment.externalRef!);
+    if (result.state === "SUCCESSFUL" && Math.abs(result.amount - Number(payment.amount)) >= 0.01) {
+      result.state = "PROCESSING";
+      result.failureReason = "Provider amount did not match the sale amount";
+    }
+    result = expireUnresolvedPaystackPayment(result, payment.createdAt);
+    statusResults.push({ payment, result });
+  }
+
+  const resultsByPaymentId = new Map(statusResults.map(({ payment, result }) => [payment.id, result]));
+  const allPaymentsSuccessful = sale.payments.every(
+    (payment) => payment.status === "SUCCESSFUL" || resultsByPaymentId.get(payment.id)?.state === "SUCCESSFUL",
+  );
+  if (allPaymentsSuccessful) {
+    await persistPaymentResults(statusResults.map(({ payment, result }) => ({ id: payment.id, result })));
+    const finalized = await finalizeSale(saleId, context);
+    return {
+      status: "COMPLETED" as const,
+      released: false,
+      requiresConfirmation: false,
+      receiptNumber: sale.receiptNumber,
+      receipt: finalized.receipt,
+    };
+  }
+
+  const failed = statusResults.find(({ result }) => result.state === "FAILED" || result.state === "CANCELLED");
+  if (failed) {
+    await persistPaymentResults(statusResults.map(({ payment, result }) => ({ id: payment.id, result })));
+    await releaseSaleStock(saleId, context);
+    return { status: "FAILED" as const, released: true, requiresConfirmation: false };
+  }
+
+  if (sale.payments.some((payment) => payment.status === "SUCCESSFUL")) {
+    throw ApiError.conflict("A payment on this sale has already succeeded. Contact a manager before releasing stock.");
+  }
+
+  const verifiedUnresolved = statusResults.every(
+    ({ result }) => result.verified === true && (result.state === "PENDING" || result.state === "PROCESSING"),
+  );
+  if (!verifiedUnresolved) {
+    throw ApiError.conflict("Paystack could not verify the payment. Keep the order reserved and try again.");
+  }
+
+  if (!forceRelease) {
+    return { status: "AWAITING_PAYMENT" as const, released: false, requiresConfirmation: true };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const cancelled = await tx.payment.updateMany({
+      where: {
+        saleId,
+        status: { in: ["PENDING", "PROCESSING"] },
+        id: { in: pendingPayments.map((payment) => payment.id) },
+      },
+      data: {
+        status: "CANCELLED",
+        failureReason: "Stock manually released while payment remained unresolved. Check for a late debit.",
+        paidAt: null,
+      },
+    });
+    if (cancelled.count !== pendingPayments.length) {
+      throw ApiError.conflict("Payment status changed during release. Check its status and try again.");
+    }
+    const released = await releaseSaleStockInTransaction(
+      tx,
+      saleId,
+      context,
+      "Manually released while payment remained unresolved",
+    );
+    if (!released) throw ApiError.conflict("Sale status changed during release. Refresh and try again.");
+  });
+
+  return { status: "FAILED" as const, released: true, requiresConfirmation: false, manuallyReleased: true };
+}
+
 /** Reconcile older in-flight hosted payments when the till is no longer polling. */
 export async function reconcileStalePayments(options: { olderThan: Date; limit?: number }) {
   const limit = options.limit ?? 50;
@@ -617,6 +781,7 @@ export async function reconcileStalePayments(options: { olderThan: Date; limit?:
       method: true,
       amount: true,
       externalRef: true,
+      createdAt: true,
       sale: { select: { storeId: true, cashierId: true } },
     },
   });
@@ -629,13 +794,16 @@ export async function reconcileStalePayments(options: { olderThan: Date; limit?:
     if (!payment.externalRef) continue;
     checked += 1;
     try {
-      const result = await getPaymentProvider(payment.method as "MOMO" | "CARD").getStatus?.(payment.externalRef);
-      if (!result || (result.state !== "SUCCESSFUL" && result.state !== "FAILED" && result.state !== "CANCELLED")) continue;
+      let result = await getPaymentProvider(payment.method as "MOMO" | "CARD").getStatus?.(payment.externalRef);
+      if (!result) continue;
 
       if (result.state === "SUCCESSFUL" && Math.abs(result.amount - Number(payment.amount)) >= 0.01) {
         result.state = "PROCESSING";
         result.failureReason = "Provider amount did not match the sale amount";
       }
+
+      result = expireUnresolvedPaystackPayment(result, payment.createdAt);
+      if (result.state !== "SUCCESSFUL" && result.state !== "FAILED" && result.state !== "CANCELLED") continue;
 
       await persistPaymentResults([{ id: payment.id, result }]);
 

@@ -79,6 +79,8 @@ export interface PaymentResult {
   /** Shown to the cashier, e.g. "Ask the customer to approve the prompt". */
   message?: string;
   failureReason?: string;
+  /** The provider confirmed that its verification API request succeeded. */
+  verified?: boolean;
   authCode?: string;
   rrn?: string;
   cardScheme?: string;

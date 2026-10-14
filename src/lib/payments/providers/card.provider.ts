@@ -143,6 +143,7 @@ export class LiveCardProvider implements PaymentProvider {
           ? "Verified transaction was not GHS card payment"
           : paystackFailureReason(status)
         : undefined,
+      verified,
       cardScheme: authorization.brand ? String(authorization.brand).toUpperCase() : undefined,
       cardLast4: authorization.last4 ? String(authorization.last4) : undefined,
       raw: payload,
