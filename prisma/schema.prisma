@@ -107,6 +107,14 @@ enum PurchaseOrderStatus {
   CANCELLED
 }
 
+enum ExpensePaymentMethod {
+  CASH
+  MOMO
+  CARD
+  BANK_TRANSFER
+  OTHER
+}
+
 enum ReturnStatus {
   PENDING
   APPROVED
@@ -225,6 +233,7 @@ model Store {
   sales           Sale[]
   kitchenTickets  KitchenTicket[]
   purchaseOrders  PurchaseOrder[]
+  expenses        Expense[]
   shifts          Shift[]
   customers       Customer[]
   suppliers       Supplier[]
@@ -322,6 +331,7 @@ model User {
   supportMessages SupportTicketMessage[]
   supportPresence SupportTicketPresence[]
   purchaseOrders  PurchaseOrder[]
+  expenses        Expense[]         @relation("ExpenseCreator")
   approvedReturns SaleReturn[]     @relation("ReturnApprover")
   createdReturns  SaleReturn[]     @relation("ReturnCreator")
 
@@ -696,6 +706,29 @@ model PurchaseOrderItem {
   product       Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@index([purchaseOrderId])
+}
+
+model Expense {
+  id               String               @id @default(cuid())
+  storeId          String
+  createdById      String?
+  amount           Decimal              @db.Decimal(12, 2)
+  category         String               @db.VarChar(40)
+  description      String               @db.VarChar(500)
+  expenseDate      DateTime
+  paymentMethod    ExpensePaymentMethod
+  supplierName     String?              @db.VarChar(120)
+  receiptReference String?              @db.VarChar(120)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  deletedAt        DateTime?
+
+  store     Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdBy User? @relation("ExpenseCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([storeId, expenseDate])
+  @@index([storeId, category, expenseDate])
+  @@index([createdById])
 }
 
 // =========================== SHIFTS ========================================

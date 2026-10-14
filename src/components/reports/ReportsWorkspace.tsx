@@ -11,10 +11,11 @@ import { Select } from "@/components/ui/Select";
 import { StatCard } from "@/components/ui/StatCard";
 import { api, buildQuery } from "@/lib/api/client";
 import type { ReportData } from "@/lib/services/report.service";
+import { ExpenseReportSummary } from "@/components/reports/ExpenseReportSummary";
 
 type Period = "daily" | "weekly" | "monthly" | "yearly";
 
-export function ReportsWorkspace({ initialData, canViewAll, currentUserId }: { initialData: ReportData | null; canViewAll: boolean; currentUserId: string }) {
+export function ReportsWorkspace({ initialData, canViewAll, canViewExpenses, currentUserId }: { initialData: ReportData | null; canViewAll: boolean; canViewExpenses: boolean; currentUserId: string }) {
   const [data, setData] = useState<ReportData | null>(initialData);
   const [period, setPeriod] = useState<Period>("daily");
   const [from, setFrom] = useState("");
@@ -126,6 +127,8 @@ export function ReportsWorkspace({ initialData, canViewAll, currentUserId }: { i
         <SalesTrendChart data={data?.chart ?? []} />
         <PaymentBreakdown summary={summary} />
       </div>
+
+      {canViewExpenses && <div className="report-screen-only"><ExpenseReportSummary /></div>}
 
       <Card className="mt-4"><CardHeader><CardTitle>Top items</CardTitle></CardHeader><CardContent className="p-0"><div className="divide-y divide-[var(--border-base)]">{(data?.topProducts ?? []).map((product, index) => <div key={`${product.sku}-${index}`} className="flex items-center gap-3 px-4 py-3"><span className="flex size-7 items-center justify-center rounded-lg bg-muted text-xs tabular">{index + 1}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-fg">{product.name}</p><p className="text-xs text-fg-muted">{product.sku} · {product.quantity} sold</p></div><Money value={product.sales} className="font-semibold text-fg" /></div>)}</div></CardContent></Card>
       </div>

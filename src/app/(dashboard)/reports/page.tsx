@@ -12,5 +12,5 @@ export default async function ReportsPage() {
   const { user } = await requirePermission(PERMISSIONS.REPORTS_DAILY, "/reports");
   const canViewAll = user.permissions.includes(PERMISSIONS.SALES_VIEW_ALL);
   const data = user.storeId ? await getReportData(user.storeId, reportQuerySchema.parse({ period: "daily" }), canViewAll ? undefined : user.id) : null;
-  return <ReportsWorkspace initialData={data} canViewAll={canViewAll} currentUserId={user.id} />;
+  return <ReportsWorkspace initialData={data} canViewAll={canViewAll} canViewExpenses={user.permissions.includes(PERMISSIONS.EXPENSES_VIEW)} currentUserId={user.id} />;
 }
