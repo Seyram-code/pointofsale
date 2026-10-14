@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, Check, Store } from "lucide-react";
 import { publicEnv } from "@/lib/config/env";
 import { SUBSCRIPTION_PLANS } from "@/lib/config/subscription-plans";
+import { getPlatformPlanPricing } from "@/lib/services/plan-pricing.service";
 import { StoreLogo } from "@/components/brand/StoreLogo";
 
 export const metadata: Metadata = { title: "Plans", alternates: { canonical: "/plans" } };
@@ -10,7 +11,12 @@ export const metadata: Metadata = { title: "Plans", alternates: { canonical: "/p
 const planOrder = ["TRIAL", "STARTER", "PREMIUM", "ENTERPRISE"] as const;
 const featuredPlan = "PREMIUM";
 
-export default function PlansPage() {
+export const dynamic = "force-dynamic";
+
+export default async function PlansPage() {
+  const pricing = await getPlatformPlanPricing();
+  const pricingByKey = new Map(pricing.map((plan) => [plan.key, plan]));
+
   return (
     <main className="min-h-dvh bg-slate-950 text-white">
       <header className="border-b border-white/10 bg-slate-950/80 backdrop-blur-xl">
@@ -39,6 +45,7 @@ export default function PlansPage() {
         <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {planOrder.map((key) => {
             const plan = SUBSCRIPTION_PLANS[key];
+            const livePlan = pricingByKey.get(key)!;
             const featured = key === featuredPlan;
             const isTrial = key === "TRIAL";
             return (
@@ -65,18 +72,27 @@ export default function PlansPage() {
                   )}
                 </div>
 
-                <p className={`mt-8 text-3xl font-bold tracking-tight ${featured ? "text-slate-900" : "text-white"}`}>
-                  {plan.monthlyPrice === null ? (
-                    plan.price
-                  ) : (
-                    <>
-                      GHS {plan.monthlyPrice.toLocaleString("en-GH")}
-                      <span className={`text-sm font-normal ${featured ? "text-slate-500" : "text-slate-400"}`}>
-                        {" "}/ month
-                      </span>
-                    </>
+                <div className="mt-8">
+                  {livePlan.promotionEndsAt && livePlan.regularMonthlyPrice !== null && (
+                    <p className={`mb-1 text-sm font-medium ${featured ? "text-slate-500" : "text-slate-400"}`}>
+                      <span className="sr-only">Regular price </span>
+                      <del>GHS {livePlan.regularMonthlyPrice.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</del>
+                      <span className={`ml-2 text-xs font-semibold ${featured ? "text-brand-800" : "text-brand-300"}`}>Offer ends Dec 31</span>
+                    </p>
                   )}
-                </p>
+                  <p className={`text-3xl font-bold tracking-tight ${featured ? "text-slate-900" : "text-white"}`}>
+                    {livePlan.monthlyPrice === null ? (
+                      key === "TRIAL" ? "Free for 14 days" : "Custom pricing"
+                    ) : (
+                      <>
+                        GHS {livePlan.monthlyPrice.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        <span className={`text-sm font-normal ${featured ? "text-slate-500" : "text-slate-400"}`}>
+                          {" "}/ month
+                        </span>
+                      </>
+                    )}
+                  </p>
+                </div>
 
                 <ul className={`mt-6 flex-1 space-y-3 border-t pt-5 ${featured ? "border-slate-200" : "border-white/10"}`}>
                   {plan.features.map((feature) => (

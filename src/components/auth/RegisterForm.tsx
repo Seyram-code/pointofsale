@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { RegionSelect } from "@/components/ui/RegionSelect";
 import { SELECTABLE_PLAN_KEYS, SUBSCRIPTION_PLANS } from "@/lib/config/subscription-plans";
+import type { PlatformPlanPricing } from "@/lib/services/plan-pricing.service";
 
 // Prices and names come from the shared plan config so registration can never
 // drift from the landing page or billing.
@@ -30,10 +31,14 @@ const BUSINESS_TYPES = [
   { value: "OTHER", label: "Other" },
 ];
 
-export function RegisterForm({ platformMode = false }: { platformMode?: boolean }) {
+export function RegisterForm({ platformMode = false, pricing }: { platformMode?: boolean; pricing?: PlatformPlanPricing[] }) {
   const [plan, setPlan] = useState<(typeof PLANS)[number]["value"]>("STARTER");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const displayPlans = PLANS.map((option) => ({
+    ...option,
+    priceInfo: pricing?.find((item) => item.key === option.value),
+  }));
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -110,7 +115,7 @@ export function RegisterForm({ platformMode = false }: { platformMode?: boolean 
         </CardContent>
       </Card>
       <div><p className="mb-2 text-sm font-medium text-fg-secondary">Choose your plan</p><div className="grid gap-2">
-        {PLANS.map((option) => <button key={option.value} type="button" onClick={() => setPlan(option.value)} className={`flex items-center justify-between rounded-lg border p-3 text-left ${plan === option.value ? "border-brand-600 bg-brand-50 dark:bg-brand-950/30" : "border-line bg-card"}`}><span><span className="block text-sm font-medium text-fg">{option.name}</span><span className="block text-xs text-fg-muted">{option.description}</span></span><span className="flex items-center gap-2 text-xs font-semibold text-fg-secondary">{option.price}{plan === option.value && <Check className="size-4 text-brand-600" />}</span></button>)}
+        {displayPlans.map((option) => <button key={option.value} type="button" onClick={() => setPlan(option.value)} className={`flex items-center justify-between rounded-lg border p-3 text-left ${plan === option.value ? "border-brand-600 bg-brand-50 dark:bg-brand-950/30" : "border-line bg-card"}`}><span><span className="block text-sm font-medium text-fg">{option.name}</span><span className="block text-xs text-fg-muted">{option.description}</span></span><span className="flex items-center gap-2 text-xs font-semibold text-fg-secondary">{option.priceInfo?.promotionEndsAt && option.priceInfo.regularMonthlyPrice !== null ? <span><del>GHS {option.priceInfo.regularMonthlyPrice.toFixed(2)}</del><span className="ml-1 text-brand-800">GHS {option.priceInfo.monthlyPrice?.toFixed(2)} through Dec 31</span></span> : option.priceInfo ? option.priceInfo.priceLabel : option.price}{plan === option.value && <Check className="size-4 text-brand-600" />}</span></button>)}
       </div></div>
       {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-danger dark:bg-red-950/40">{error}</p>}
       {!platformMode && (

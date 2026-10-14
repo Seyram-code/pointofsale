@@ -19,6 +19,7 @@ import {
 import { StoreLogo } from "@/components/brand/StoreLogo";
 import { publicEnv } from "@/lib/config/env";
 import { SUBSCRIPTION_PLANS, type SubscriptionPlan } from "@/lib/config/subscription-plans";
+import { getPlatformPlanPricing } from "@/lib/services/plan-pricing.service";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -59,6 +60,8 @@ const PLANS: Array<{ key: SubscriptionPlan; body: string; featured: boolean }> =
   { key: "ENTERPRISE", body: "For larger retail operations", featured: false },
 ];
 
+export const dynamic = "force-dynamic";
+
 const FAQS = [
   { question: "Who is VidyPOS for?", answer: "VidyPOS is built for shops, supermarkets, pharmacies and retail teams that need one place to manage checkout, stock, staff and growth." },
   { question: "How do I create and activate my shop?", answer: "Create your shop and enter the owner email. We’ll email a secure activation link; open it and confirm activation on the page. You can also use the six-digit code in the email. The link and code expire after 30 minutes, and you can request a new one if needed." },
@@ -68,23 +71,9 @@ const FAQS = [
   { question: "Where can I get help or learn how my information is used?", answer: "Review our privacy terms in the app and speak with your store administrator for account support and access questions." },
 ];
 
-export default function HomePage() {
-  const pricingByKey = new Map(
-    (Object.keys(SUBSCRIPTION_PLANS) as SubscriptionPlan[]).map((key) => [
-      key,
-      {
-        key,
-        name: SUBSCRIPTION_PLANS[key].name,
-        monthlyPrice: SUBSCRIPTION_PLANS[key].monthlyPrice,
-        priceLabel:
-          SUBSCRIPTION_PLANS[key].monthlyPrice == null
-            ? key === "TRIAL"
-              ? "Free for 14 days"
-              : "Custom pricing"
-            : `GHS ${SUBSCRIPTION_PLANS[key].monthlyPrice.toLocaleString("en-GH")} / month`,
-      },
-    ]),
-  );
+export default async function HomePage() {
+  const pricing = await getPlatformPlanPricing();
+  const pricingByKey = new Map(pricing.map((plan) => [plan.key, plan]));
 
   return (
     <div className="min-h-dvh bg-slate-950 text-white">
@@ -449,19 +438,28 @@ export default function HomePage() {
                     <h3 className="text-lg font-bold">{plan.name}</h3>
                     <p className={`mt-2 text-sm ${entry.featured ? "text-slate-500" : "text-white/60"}`}>{entry.body}</p>
 
-                    <p className="mt-7 flex items-baseline gap-1.5 text-4xl font-bold tracking-tight">
-                      {livePlan?.monthlyPrice != null && (
-                        <span className={`text-base font-semibold ${entry.featured ? "text-slate-400" : "text-white/50"}`}>GHS</span>
+                    <div className="mt-7">
+                      {livePlan?.promotionEndsAt && livePlan.regularMonthlyPrice !== null && (
+                        <p className={`mb-1 text-sm font-medium ${entry.featured ? "text-slate-500" : "text-white/50"}`}>
+                          <span className="sr-only">Regular price </span>
+                          <del>GHS {livePlan.regularMonthlyPrice.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</del>
+                          <span className={`ml-2 text-xs font-semibold ${entry.featured ? "text-brand-800" : "text-brand-300"}`}>Offer ends Dec 31</span>
+                        </p>
                       )}
-                      {livePlan?.monthlyPrice == null ? (
-                        <span className="text-2xl">{plan.price}</span>
-                      ) : (
-                        <>
-                          {livePlan?.monthlyPrice.toLocaleString("en-GH")}
-                          <span className={`text-sm font-medium ${entry.featured ? "text-slate-400" : "text-white/45"}`}>/mo</span>
-                        </>
-                      )}
-                    </p>
+                      <p className="flex items-baseline gap-1.5 text-4xl font-bold tracking-tight">
+                        {livePlan?.monthlyPrice != null && (
+                          <span className={`text-base font-semibold ${entry.featured ? "text-slate-400" : "text-white/50"}`}>GHS</span>
+                        )}
+                        {livePlan?.monthlyPrice == null ? (
+                          <span className="text-2xl">{plan.price}</span>
+                        ) : (
+                          <>
+                            {livePlan.monthlyPrice.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            <span className={`text-sm font-medium ${entry.featured ? "text-slate-400" : "text-white/45"}`}>/mo</span>
+                          </>
+                        )}
+                      </p>
+                    </div>
 
                     <ul className={`mt-7 flex-1 space-y-3 border-t pt-6 ${entry.featured ? "border-slate-200" : "border-white/10"}`}>
                       {plan.features.map((feature) => (

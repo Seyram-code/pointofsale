@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 
-interface PlanPrice { key: string; name: string; monthlyPrice: number | null; priceLabel: string }
+interface PlanPrice { key: string; name: string; monthlyPrice: number | null; regularMonthlyPrice: number | null; priceLabel: string }
 
 export function PlatformPlanManager() {
   const { success, error } = useToast();
@@ -23,7 +23,7 @@ export function PlatformPlanManager() {
     const payload = await response.json();
     if (!response.ok || !payload.success) throw new Error(payload.error?.message ?? "Could not load plan prices");
     setPlans(payload.data);
-    setValues(Object.fromEntries(payload.data.map((plan: PlanPrice) => [plan.key, plan.monthlyPrice === null ? "" : String(plan.monthlyPrice)])));
+    setValues(Object.fromEntries(payload.data.map((plan: PlanPrice) => [plan.key, plan.regularMonthlyPrice === null ? "" : String(plan.regularMonthlyPrice)])));
     setLoaded(true);
   }, [loaded]);
 
