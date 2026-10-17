@@ -126,7 +126,7 @@ export function PaystackSettlementSettings({ initialState, canManage }: { initia
                 {!canManage && <p className="text-xs text-fg-muted sm:col-span-2">You need settings management permission to connect a settlement account.</p>}
               </form>
             )}
-            <p className="text-xs text-fg-muted">The platform currently retains {state.platformPercentageCharge ?? 0}% of each Paystack transaction; the rest is allocated to this shop before Paystack fees and settlement timing.</p>
+            <p className="text-xs text-fg-muted">The platform share is {state.platformPercentageCharge ?? 0}% of each Paystack transaction, covering Paystack processing and VidyPOS fees. The remainder is allocated to this shop.</p>
           </>
         )}
       </CardContent>

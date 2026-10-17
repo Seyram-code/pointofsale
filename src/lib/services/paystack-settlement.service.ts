@@ -40,7 +40,7 @@ function paystackCredentials() {
 
 function platformPercentageCharge() {
   const rawValue = process.env.PAYSTACK_PLATFORM_PERCENTAGE_CHARGE?.trim();
-  if (!rawValue) return 1;
+  if (!rawValue) return 3;
   const value = Number(rawValue);
   return Number.isFinite(value) && value >= 0 && value <= 100 ? value : null;
 }
