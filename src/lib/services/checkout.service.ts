@@ -5,12 +5,14 @@ import { prisma } from "@/lib/db/prisma";
 import { ApiError } from "@/lib/api/response";
 import { getPaymentProvider } from "@/lib/payments/registry";
 import { PaymentError } from "@/lib/payments/errors";
+import { isLivePaystackMethod } from "@/lib/payments/config";
+import { calculatePaystackFee } from "@/lib/payments/paystack-fee";
 import { expireUnresolvedPaystackPayment } from "@/lib/payments/paystack-status";
 import { nextNumber } from "@/lib/services/numbering.service";
 import { DECIMAL_MONEY, DECIMAL_QTY, persistSaleItemOptions, priceCart, saleItemCreateData, type PricedCart } from "@/lib/services/cart.service";
 import { generateReceipt, type ReceiptPayload } from "@/lib/services/receipt.service";
 import { applySalesSummary } from "@/lib/services/sales-summary.service";
-import { addMoney, subtractMoney } from "@/lib/utils/money";
+import { addMoney, fromPesewas, subtractMoney, toPesewas } from "@/lib/utils/money";
 import type { SaleContext } from "@/lib/services/sale.service";
 import type { CheckoutInput, PaymentInput } from "@/lib/validations/sale.schema";
 import type { PaymentRequest, PaymentResult } from "@/lib/payments/types";
@@ -20,6 +22,8 @@ export interface CheckoutResult {
   receiptNumber: string;
   status: "COMPLETED" | "AWAITING_PAYMENT" | "FAILED";
   total: number;
+  paymentFee: number;
+  amountDue: number;
   amountPaid: number;
   changeDue: number;
   itemCount: number;
@@ -79,12 +83,21 @@ export async function checkout(input: CheckoutInput, context: SaleContext & { ap
   }
   const cart = await priceCart(context.storeId, input.items, input.discount, context.allowPriceOverride);
 
+  const hasPaystackPayment = input.payments.some((payment) =>
+    (payment.method === "CARD" || payment.method === "MOMO") && isLivePaystackMethod(payment.method),
+  );
+  const nonPaystackAmount = addMoney(...input.payments
+    .filter((payment) => !((payment.method === "CARD" || payment.method === "MOMO") && isLivePaystackMethod(payment.method)))
+    .map((payment) => payment.amount));
+  const paystackBaseAmount = Math.max(subtractMoney(cart.totals.total, nonPaystackAmount), 0);
+  const paymentFee = hasPaystackPayment ? calculatePaystackFee(paystackBaseAmount) : 0;
+  const amountDue = addMoney(cart.totals.total, paymentFee);
   const requestedTotal = addMoney(...input.payments.map((payment) => payment.amount));
-  if (requestedTotal + 0.001 < cart.totals.total) {
+  if (requestedTotal + 0.001 < amountDue) {
     throw ApiError.badRequest("Payments do not cover the total due");
   }
 
-  const { saleId, receiptNumber, paymentRows } = await createPendingSale(input, context, cart);
+  const { saleId, receiptNumber, paymentRows } = await createPendingSale(input, context, cart, paymentFee);
 
   const results: Array<{ id: string; input: PaymentInput; result: PaymentResult }> = [];
 
@@ -122,6 +135,8 @@ export async function checkout(input: CheckoutInput, context: SaleContext & { ap
       receiptNumber,
       status: "FAILED",
       total: cart.totals.total,
+      paymentFee,
+      amountDue,
       amountPaid: 0,
       changeDue: 0,
       itemCount: cart.lines.length,
@@ -144,6 +159,8 @@ export async function checkout(input: CheckoutInput, context: SaleContext & { ap
       receiptNumber,
       status: "AWAITING_PAYMENT",
       total: cart.totals.total,
+      paymentFee,
+      amountDue,
       amountPaid: 0,
       changeDue: 0,
       itemCount: cart.lines.length,
@@ -166,6 +183,8 @@ export async function checkout(input: CheckoutInput, context: SaleContext & { ap
     receiptNumber,
     status: "COMPLETED",
     total: finalised.total,
+    paymentFee: finalised.paymentFee,
+    amountDue: finalised.amountDue,
     amountPaid: finalised.amountPaid,
     changeDue: finalised.changeDue,
     itemCount: finalised.itemCount,
@@ -180,7 +199,7 @@ export async function checkout(input: CheckoutInput, context: SaleContext & { ap
   };
 }
 
-async function createPendingSale(input: CheckoutInput, context: SaleContext, cart: PricedCart) {
+async function createPendingSale(input: CheckoutInput, context: SaleContext, cart: PricedCart, paymentFee: number) {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
       return await prisma.$transaction(async (tx) => {
@@ -231,6 +250,7 @@ async function createPendingSale(input: CheckoutInput, context: SaleContext, car
         discountAmount: DECIMAL_MONEY(cart.totals.discountAmount),
         taxAmount: DECIMAL_MONEY(cart.totals.taxAmount),
         total: DECIMAL_MONEY(cart.totals.total),
+        paymentFee: DECIMAL_MONEY(paymentFee),
         itemCount: cart.lines.length,
         note: input.note ?? null,
         items: { create: saleItemCreateData(cart.lines) },
@@ -421,15 +441,17 @@ export async function finalizeSale(saleId: string, context: SaleContext) {
     const successful = sale.payments.filter((payment) => payment.status === "SUCCESSFUL");
     const amountPaid = addMoney(...successful.map((payment) => Number(payment.amount)));
     const total = Number(sale.total);
+    const paymentFee = Number(sale.paymentFee);
+    const amountDue = addMoney(total, paymentFee);
 
-    if (amountPaid + 0.001 < total) {
+    if (amountPaid + 0.001 < amountDue) {
       throw ApiError.badRequest("Payments do not cover the total due");
     }
 
     const tendered = addMoney(
       ...successful.map((payment) => Number(payment.tenderedAmount ?? payment.amount)),
     );
-    const changeDue = Math.max(subtractMoney(tendered, total), 0);
+    const changeDue = Math.max(subtractMoney(tendered, amountDue), 0);
     const completedAt = new Date();
 
     const completedSale = await tx.sale.updateMany({
@@ -475,8 +497,24 @@ export async function finalizeSale(saleId: string, context: SaleContext) {
       if (customerUpdate.count !== 1) throw ApiError.notFound("Customer");
     }
 
-    const byMethod = (method: string) =>
-      addMoney(...successful.filter((p) => p.method === method).map((p) => Number(p.amount)));
+    const paystackMethods = (["MOMO", "CARD"] as const).filter(isLivePaystackMethod);
+    const paystackAmounts = paystackMethods
+      .map((method) => [method, addMoney(...successful.filter((payment) => payment.method === method).map((payment) => Number(payment.amount)))] as const)
+      .filter(([, amount]) => amount > 0);
+    const paystackAmount = addMoney(...paystackAmounts.map(([, amount]) => amount));
+    const feeAllocations = new Map<string, number>();
+    let allocatedFeePesewas = 0;
+    for (const [index, [method, amount]] of paystackAmounts.entries()) {
+      const feeSharePesewas = index === paystackAmounts.length - 1
+        ? toPesewas(paymentFee) - allocatedFeePesewas
+        : Math.round(toPesewas(paymentFee) * toPesewas(amount) / toPesewas(paystackAmount));
+      feeAllocations.set(method, fromPesewas(feeSharePesewas));
+      allocatedFeePesewas += feeSharePesewas;
+    }
+    const byMethod = (method: string) => subtractMoney(
+      addMoney(...successful.filter((payment) => payment.method === method).map((payment) => Number(payment.amount))),
+      feeAllocations.get(method) ?? 0,
+    );
 
     if (sale.shiftId) {
       await tx.shift.update({
@@ -510,6 +548,8 @@ export async function finalizeSale(saleId: string, context: SaleContext) {
 
     return {
       total,
+      paymentFee,
+      amountDue,
       amountPaid,
       changeDue,
       itemCount: sale.itemCount,
@@ -558,6 +598,8 @@ export async function refreshPaymentStatus(saleId: string, context: SaleContext)
     receiptNumber: sale.receiptNumber,
     status: allSettled ? "COMPLETED" : hasFailedPayment ? "FAILED" : "AWAITING_PAYMENT",
     total: Number(sale.total),
+    paymentFee: Number(sale.paymentFee),
+    amountDue: addMoney(Number(sale.total), Number(sale.paymentFee)),
     amountPaid: 0,
     changeDue: 0,
     itemCount: sale.itemCount,
@@ -591,6 +633,8 @@ export async function refreshPaymentStatus(saleId: string, context: SaleContext)
   return {
     ...base,
     status: "COMPLETED",
+    paymentFee: finalised.paymentFee,
+    amountDue: finalised.amountDue,
     amountPaid: finalised.amountPaid,
     changeDue: finalised.changeDue,
     receipt: finalised.receipt,

@@ -798,6 +798,7 @@ model Sale {
   discountAmount Decimal    @default(0) @db.Decimal(12, 2)
   taxAmount      Decimal    @default(0) @db.Decimal(12, 2)
   total          Decimal    @default(0) @db.Decimal(12, 2)
+  paymentFee     Decimal    @default(0) @db.Decimal(12, 2)
   amountPaid     Decimal    @default(0) @db.Decimal(12, 2)
   changeDue      Decimal    @default(0) @db.Decimal(12, 2)
   refundedAmount Decimal    @default(0) @db.Decimal(12, 2)

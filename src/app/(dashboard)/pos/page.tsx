@@ -4,7 +4,7 @@ import { PERMISSIONS } from "@/lib/auth/permissions";
 import { listPosCategories } from "@/lib/services/product.service";
 import { prisma } from "@/lib/db/prisma";
 import { isMockCardDriver, isMockMomoDriver } from "@/lib/payments/registry";
-import { isPaystackMethod } from "@/lib/payments/config";
+import { isLivePaystackMethod, isPaystackMethod } from "@/lib/payments/config";
 import { PAYMENT_METHOD_LABELS, type PaymentMethod } from "@/lib/payments/types";
 import { PosTerminal } from "@/components/pos/PosTerminal";
 import { isPaystackEnabled } from "@/lib/services/payment-settings.service";
@@ -29,6 +29,7 @@ export default async function PosPage() {
     <PosTerminal
       categories={categories}
       paymentMethods={paymentMethods.map((method) => ({ method, label: PAYMENT_METHOD_LABELS[method] }))}
+      paystackMethods={(["MOMO", "CARD"] as const).filter(isLivePaystackMethod)}
       mockCardDriver={isMockCardDriver()}
       mockMomoDriver={isMockMomoDriver()}
       storeEmail={store?.email ?? ""}

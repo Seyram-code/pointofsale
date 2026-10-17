@@ -237,16 +237,17 @@ async function topProducts(storeId: string, days: number, limit: number, cashier
   const rows = await prisma.$queryRaw<
     Array<{ productId: string; name: string; sku: string; quantity: Prisma.Decimal; revenue: Prisma.Decimal }>
   >(Prisma.sql`
-    SELECT si.productId, si.productName AS name, si.sku,
+    SELECT si.productId, COALESCE(p.name, MAX(si.productName)) AS name, COALESCE(p.sku, MAX(si.sku)) AS sku,
            SUM(si.quantity - si.refundedQty) AS quantity,
            SUM(si.lineTotal) AS revenue
     FROM \`SaleItem\` si
     JOIN \`Sale\` s ON s.id = si.saleId
+    LEFT JOIN \`Product\` p ON p.id = si.productId AND p.storeId = s.storeId
     WHERE s.storeId = ${storeId}
       AND s.status IN (${Prisma.join([...COUNTED_STATUSES])})
       AND s.completedAt BETWEEN ${from} AND ${to}
       ${cashierId ? Prisma.sql`AND s.cashierId = ${cashierId}` : Prisma.empty}
-    GROUP BY si.productId, si.productName, si.sku
+    GROUP BY si.productId, p.name, p.sku
     ORDER BY revenue DESC
     LIMIT ${limit}
   `);

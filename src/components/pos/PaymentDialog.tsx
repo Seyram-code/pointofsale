@@ -11,16 +11,18 @@ import { Badge } from "@/components/ui/Badge";
 import { PaymentMethodSelector } from "@/components/pos/PaymentMethodSelector";
 import { cn } from "@/lib/utils/cn";
 import { CASH_DENOMINATIONS } from "@/lib/config/constants";
-import { roundCashTender, subtractMoney } from "@/lib/utils/money";
+import { addMoney, roundCashTender, subtractMoney } from "@/lib/utils/money";
 import { normalizeGhanaPhone } from "@/lib/utils/format";
 import { api, ApiClientError } from "@/lib/api/client";
 import type { PaymentMethod } from "@/lib/payments/types";
 import { useToast } from "@/components/ui/Toast";
+import Image from "next/image";
+import { calculatePaystackFee, PAYSTACK_FEE_RATE, VIDYPOS_PLATFORM_FEE_RATE } from "@/lib/payments/paystack-fee";
 
 const MOMO_NETWORKS = [
-  { value: "MTN", label: "MTN" },
-  { value: "VODAFONE", label: "Telecel" },
-  { value: "AIRTELTIGO", label: "AirtelTigo" },
+  { value: "MTN", label: "MTN", logo: "/images/payment-networks/mtn.svg", width: 88, height: 44 },
+  { value: "VODAFONE", label: "Telecel", logo: "/images/payment-networks/telecel.png", width: 64, height: 46 },
+  { value: "AIRTELTIGO", label: "AirtelTigo", logo: "/images/payment-networks/at.png", width: 88, height: 23 },
 ] as const;
 
 function ReceiptBarcode({ receipt }: { receipt: NonNullable<CheckoutResponse["receipt"]> }) {
@@ -53,7 +55,7 @@ function ReceiptBarcode({ receipt }: { receipt: NonNullable<CheckoutResponse["re
       `Subtotal: ${formatAmount(receipt.totals.subtotal)}`,
       `Discount: ${formatAmount(receipt.totals.discount)}`,
       `Tax: ${formatAmount(receipt.totals.tax)}`,
-      `TOTAL: ${formatAmount(receipt.totals.total)}`,
+      `Total: ${formatAmount(receipt.totals.amountDue ?? receipt.totals.total + (receipt.totals.paymentFee ?? 0))}`,
       `Amount paid: ${formatAmount(receipt.totals.amountPaid)}`,
       `Change: ${formatAmount(receipt.totals.changeDue)}`,
     ].join("\n");
@@ -85,6 +87,8 @@ export interface CheckoutResponse {
   receiptNumber: string;
   status: "COMPLETED" | "AWAITING_PAYMENT" | "FAILED";
   total: number;
+  paymentFee: number;
+  amountDue: number;
   amountPaid: number;
   changeDue: number;
   orderItems?: Array<{ productId: string; sku: string; quantity: number; optionIds: string[]; selectedOptions: Array<{ id: string; name: string; priceDelta: number }> }>;
@@ -99,7 +103,7 @@ export interface CheckoutResponse {
     tableNumber: string | null;
     currency: string;
     items: Array<{ name: string; sku: string; quantity: number; unitPrice: number; lineTotal: number; taxAmount: number }>;
-    totals: { subtotal: number; discount: number; tax: number; total: number; amountPaid: number; changeDue: number };
+    totals: { subtotal: number; discount: number; tax: number; total: number; paymentFee?: number; amountDue?: number; amountPaid: number; changeDue: number };
     payments: Array<{ method: string; label: string; amount: number; tenderedAmount: number | null; reference: string | null; cardLast4: string | null; momoPhone: string | null }>;
   } | null;
 }
@@ -109,6 +113,7 @@ export interface PaymentDialogProps {
   total: number;
   returnSaleId?: string | null;
   methods: Array<{ method: PaymentMethod; label: string }>;
+  paystackMethods: Array<"MOMO" | "CARD">;
   mockCardDriver: boolean;
   mockMomoDriver: boolean;
   defaultEmail: string;
@@ -125,6 +130,7 @@ export function PaymentDialog({
   total,
   returnSaleId,
   methods,
+  paystackMethods,
   mockCardDriver,
   mockMomoDriver,
   defaultEmail,
@@ -218,24 +224,28 @@ export function PaymentDialog({
     };
   }, [notifyCompleted, onReturnHandled, result, returnSaleId]);
 
+  const paymentFee = (method === "MOMO" || method === "CARD") && paystackMethods.includes(method)
+    ? calculatePaystackFee(total)
+    : 0;
+  const amountDue = useMemo(() => addMoney(total, paymentFee), [paymentFee, total]);
   const tenderedAmount = Number(tendered) || 0;
-  const change = useMemo(() => Math.max(subtractMoney(tenderedAmount, total), 0), [tenderedAmount, total]);
+  const change = useMemo(() => Math.max(subtractMoney(tenderedAmount, amountDue), 0), [amountDue, tenderedAmount]);
 
   const quickTenders = useMemo(() => {
-    const options = new Set<number>([roundCashTender(total)]);
+    const options = new Set<number>([roundCashTender(amountDue)]);
     for (const note of CASH_DENOMINATIONS) {
-      if (note >= 1) options.add(Math.ceil(total / note) * note);
+      if (note >= 1) options.add(Math.ceil(amountDue / note) * note);
     }
     return Array.from(options)
-      .filter((amount) => amount >= total)
+      .filter((amount) => amount >= amountDue)
       .sort((a, b) => a - b)
       .slice(0, 5);
-  }, [total]);
+  }, [amountDue]);
 
   const canConfirm =
     !loading &&
     (method === "CASH"
-      ? tenderedAmount + 0.001 >= total
+      ? tenderedAmount + 0.001 >= amountDue
       : method === "MOMO"
         ? momoPhone.trim().length > 0 && (mockMomoDriver || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(defaultEmail.trim()))
         : method === "CARD" && !mockCardDriver
@@ -258,7 +268,7 @@ export function PaymentDialog({
     try {
       const payment: CheckoutPaymentInput = {
         method,
-        amount: total,
+        amount: amountDue,
         ...(method === "CASH" ? { tenderedAmount } : {}),
         ...(method === "MOMO"
           ? {
@@ -363,8 +373,8 @@ export function PaymentDialog({
                 {receipt.totals.discount > 0 && <div className="flex justify-between"><dt className="text-fg-secondary">Discount</dt><dd>-<Money value={receipt.totals.discount} /></dd></div>}
                 <div className="flex justify-between"><dt className="text-fg-secondary">Tax</dt><dd><Money value={receipt.totals.tax} /></dd></div>
                 {hasCashTender && <div className="flex justify-between"><dt className="text-fg-secondary">Amount tendered</dt><dd><Money value={tendered} /></dd></div>}
-                <div className="flex justify-between"><dt className="text-fg-secondary">Balance</dt><dd><Money value={receipt.totals.changeDue} className="font-semibold text-success" /></dd></div>
-                <div className="flex justify-between border-t border-line pt-2 font-semibold"><dt className="text-fg">Total</dt><dd><Money value={receipt.totals.total} /></dd></div>
+                <div className="flex justify-between border-t border-line pt-2 font-semibold"><dt className="text-fg">Total</dt><dd><Money value={receipt.totals.amountDue ?? receipt.totals.total + (receipt.totals.paymentFee ?? 0)} /></dd></div>
+                <div className="flex justify-between"><dt className="text-fg-secondary">Change</dt><dd><Money value={receipt.totals.changeDue} className="font-semibold text-success" /></dd></div>
               </dl>
 
               <div className="flex justify-between gap-3 px-1 text-sm">
@@ -420,7 +430,7 @@ export function PaymentDialog({
         <div className="space-y-4">
           <div className="flex items-baseline justify-between rounded-xl bg-brand-600 px-4 py-3 text-white">
             <span className="text-sm">Amount due</span>
-            <Money value={result.total} size="xl" />
+            <Money value={result.amountDue} size="xl" />
           </div>
           <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-danger dark:border-red-900 dark:bg-red-950/40">
             <AlertCircle className="mt-0.5 size-4 shrink-0" />
@@ -452,7 +462,7 @@ export function PaymentDialog({
               Open Paystack checkout
             </a>
           )}
-          <Money value={result.total} size="xl" className="mt-5" />
+          <Money value={result.amountDue} size="xl" className="mt-5" />
         </div>
       </Modal>
     );
@@ -478,8 +488,14 @@ export function PaymentDialog({
     >
       <div className="mb-4 flex items-baseline justify-between rounded-xl bg-brand-600 px-4 py-3 text-white">
         <span className="text-sm">Amount due</span>
-        <Money value={total} size="xl" />
+        <Money value={amountDue} size="xl" />
       </div>
+      {paymentFee > 0 && (
+        <dl className="mb-4 space-y-1 text-sm">
+          <div className="flex justify-between text-fg-secondary"><dt>Sale total</dt><dd><Money value={total} /></dd></div>
+          <div className="flex justify-between text-fg-secondary"><dt>Online payment charges ({(PAYSTACK_FEE_RATE * 100).toFixed(2)}% Paystack + {(VIDYPOS_PLATFORM_FEE_RATE * 100).toFixed(2)}% VidyPOS)</dt><dd><Money value={paymentFee} /></dd></div>
+        </dl>
+      )}
 
       {((method === "CARD" && mockCardDriver) || (method === "MOMO" && mockMomoDriver)) && (
         <Badge
@@ -547,14 +563,25 @@ export function PaymentDialog({
                 key={network.value}
                 type="button"
                 onClick={() => setMomoNetwork(network.value)}
+                aria-label={network.label}
+                title={network.label}
                 className={cn(
-                  "h-10 rounded-lg border text-xs font-medium transition-colors",
+                  "flex h-14 items-center justify-center rounded-lg border px-2 transition-colors",
                   momoNetwork === network.value
                     ? "border-accent-500 bg-accent-100 text-accent-900 dark:bg-accent-900/40 dark:text-accent-100"
                     : "border-line bg-card text-fg-secondary hover:bg-muted",
                 )}
               >
-                {network.label}
+                <span className="flex h-10 w-full items-center justify-center rounded-md bg-white px-2">
+                  <Image
+                    src={network.logo}
+                    alt=""
+                    aria-hidden="true"
+                    width={network.width}
+                    height={network.height}
+                    className="max-h-8 max-w-full object-contain"
+                  />
+                </span>
               </button>
             ))}
           </div>

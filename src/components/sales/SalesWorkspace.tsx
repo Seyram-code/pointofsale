@@ -26,6 +26,7 @@ export interface SalesWorkspaceRow {
   status: string;
   subtotal: number;
   tax: number;
+  paymentFee: number;
   amountPaid: number;
   changeDue: number;
   items: Array<{ id: string; name: string; quantity: number; unitPrice: number; lineTotal: number }>;
@@ -54,7 +55,7 @@ interface SavedReceipt {
   tableNumber: string | null;
   currency: string;
   items: Array<{ name: string; sku: string; quantity: number; unitPrice: number; lineTotal: number; taxAmount: number }>;
-  totals: { subtotal: number; discount: number; tax: number; total: number; amountPaid: number; changeDue: number };
+  totals: { subtotal: number; discount: number; tax: number; total: number; paymentFee?: number; amountDue?: number; amountPaid: number; changeDue: number };
   payments: Array<{ method: string; label: string; amount: number; tenderedAmount: number | null; reference: string | null; cardLast4: string | null; momoPhone: string | null }>;
 }
 
@@ -151,7 +152,7 @@ export function SalesWorkspace({ sales, staff, canViewAll }: SalesWorkspaceProps
         `Subtotal: ${formatAmount(receipt.totals.subtotal)}`,
         `Discount: ${formatAmount(receipt.totals.discount)}`,
         `Tax: ${formatAmount(receipt.totals.tax)}`,
-        `TOTAL: ${formatAmount(receipt.totals.total)}`,
+        `Total: ${formatAmount(receipt.totals.amountDue ?? receipt.totals.total + (receipt.totals.paymentFee ?? 0))}`,
         `Amount paid: ${formatAmount(receipt.totals.amountPaid)}`,
         `Change: ${formatAmount(receipt.totals.changeDue)}`,
       ].join("\n");
@@ -340,7 +341,7 @@ export function SalesWorkspace({ sales, staff, canViewAll }: SalesWorkspaceProps
             <div className="flex justify-between"><dt>Subtotal</dt><dd><Money value={savedReceipt.totals.subtotal} /></dd></div>
             {savedReceipt.totals.discount > 0 && <div className="flex justify-between"><dt>Discount</dt><dd>-<Money value={savedReceipt.totals.discount} /></dd></div>}
             <div className="flex justify-between"><dt>Tax</dt><dd><Money value={savedReceipt.totals.tax} /></dd></div>
-            <div className="flex justify-between font-semibold"><dt>Total</dt><dd><Money value={savedReceipt.totals.total} /></dd></div>
+            <div className="flex justify-between font-semibold"><dt>Total</dt><dd><Money value={savedReceipt.totals.amountDue ?? savedReceipt.totals.total + (savedReceipt.totals.paymentFee ?? 0)} /></dd></div>
             <div className="flex justify-between"><dt>Amount paid</dt><dd><Money value={savedReceipt.totals.amountPaid} /></dd></div>
             <div className="flex justify-between"><dt>Change</dt><dd><Money value={savedReceipt.totals.changeDue} /></dd></div>
           </dl>

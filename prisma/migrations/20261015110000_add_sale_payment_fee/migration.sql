@@ -1,0 +1,2 @@
+ALTER TABLE `Sale`
+    ADD COLUMN `paymentFee` DECIMAL(12, 2) NOT NULL DEFAULT 0;

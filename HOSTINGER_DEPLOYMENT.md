@@ -19,7 +19,7 @@ In Hostinger's Node.js environment variables, configure the values from `.env.ex
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, and `MAIL_FROM`: configure a verified SMTP mailbox. Hostinger SMTP commonly uses port `587` with `SMTP_SECURE=false`; use the exact values shown in your email hosting panel.
 - `SMTP_SECURE`: set `true` only when using implicit TLS (commonly port `465`).
 - `PAYMENT_DRIVER`: use `mock` for the current deployment.
-- `PAYSTACK_PLATFORM_PERCENTAGE_CHARGE`: platform percentage retained from each Paystack split, from `0` to `100`. Set only after agreeing the shop commission. Shops cannot enable live Paystack settlement until it is configured.
+- `PAYSTACK_PLATFORM_PERCENTAGE_CHARGE`: platform percentage retained from each Paystack split, from `0` to `100`. The intended setting is `1` for the 1% VidyPOS charge. This value is applied when creating a Paystack subaccount and does not change the percentage on an already-created subaccount.
 - `CRON_SECRET`: generate a unique random secret for scheduled tasks (for example, `openssl rand -hex 32`).
 - `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD`: use unique production values.
 - `SEED_DEMO_USERS`: keep set to `false`.

@@ -138,6 +138,7 @@ export default async function SalesPage({ searchParams }: { searchParams?: Promi
           })),
           subtotal: Number(sale.subtotal),
           tax: Number(sale.taxAmount),
+          paymentFee: Number(sale.paymentFee),
           amountPaid: Number(sale.amountPaid),
           changeDue: Number(sale.changeDue),
           itemCount: sale.itemCount,

@@ -11,6 +11,7 @@ const PREFIXES: Record<string, string> = {
   SHIFT: "SHF",
   CUSTOMER: "CUS",
   SUPPLIER: "SUP",
+  REGISTER: "REG",
   STAFF: "STF",
   EMPLOYEE: "EMP",
 };

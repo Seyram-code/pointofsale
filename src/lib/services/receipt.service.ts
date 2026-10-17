@@ -37,6 +37,8 @@ export interface ReceiptPayload {
     discount: number;
     tax: number;
     total: number;
+    paymentFee?: number;
+    amountDue?: number;
     amountPaid: number;
     changeDue: number;
   };
@@ -104,6 +106,8 @@ export async function generateReceipt(client: TxClient, saleId: string): Promise
       discount: Number(sale.discountAmount),
       tax: Number(sale.taxAmount),
       total: Number(sale.total),
+      paymentFee: Number(sale.paymentFee),
+      amountDue: Number(sale.total) + Number(sale.paymentFee),
       amountPaid: Number(sale.amountPaid),
       changeDue: Number(sale.changeDue),
     },

@@ -64,6 +64,7 @@ export interface PosTerminalProps {
   categories: PosCategory[];
   permissions: { canDiscount: boolean; canHold: boolean };
   paymentMethods: PosPaymentMethodOption[];
+  paystackMethods: Array<"MOMO" | "CARD">;
   mockCardDriver: boolean;
   mockMomoDriver: boolean;
   storeEmail: string;
@@ -91,7 +92,7 @@ const SHORTCUTS = [
   ["F8", "Checkout"],
 ] as const;
 
-export function PosTerminal({ categories, permissions, paymentMethods, mockCardDriver, mockMomoDriver, storeEmail, isRestaurant }: PosTerminalProps) {
+export function PosTerminal({ categories, permissions, paymentMethods, paystackMethods, mockCardDriver, mockMomoDriver, storeEmail, isRestaurant }: PosTerminalProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const toast = useToast();
@@ -683,6 +684,7 @@ export function PosTerminal({ categories, permissions, paymentMethods, mockCardD
         total={cart.totals.total}
         returnSaleId={returnSaleId}
         methods={paymentMethods}
+        paystackMethods={paystackMethods}
         mockCardDriver={mockCardDriver}
         mockMomoDriver={mockMomoDriver}
         defaultEmail={storeEmail}

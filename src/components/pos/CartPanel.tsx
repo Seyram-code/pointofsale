@@ -55,7 +55,7 @@ export function CartPanel({
   const empty = lines.length === 0;
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-card max-sm:h-auto">
+    <div className="flex h-full min-h-0 w-full min-w-0 flex-col bg-card max-sm:h-auto">
       <div className="flex items-center gap-2 border-b border-line px-3 py-3">
         <ShoppingCart className="size-4 shrink-0 text-fg-muted" />
         <p className="flex-1 text-sm font-semibold text-fg">
