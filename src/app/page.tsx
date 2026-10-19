@@ -443,7 +443,7 @@ export default async function HomePage() {
                         <p className={`mb-1 text-sm font-medium ${entry.featured ? "text-slate-500" : "text-white/50"}`}>
                           <span className="sr-only">Regular price </span>
                           <del>GHS {livePlan.regularMonthlyPrice.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</del>
-                          <span className={`ml-2 text-xs font-semibold ${entry.featured ? "text-brand-800" : "text-brand-300"}`}>Offer ends Dec 31</span>
+                          <span className={`ml-2 text-xs font-semibold ${entry.featured ? "text-accent-800" : "text-accent-200"}`}>Offer ends Dec 31</span>
                         </p>
                       )}
                       <p className="flex items-baseline gap-1.5 text-4xl font-bold tracking-tight">

@@ -77,7 +77,7 @@ export default async function PlansPage() {
                     <p className={`mb-1 text-sm font-medium ${featured ? "text-slate-500" : "text-slate-400"}`}>
                       <span className="sr-only">Regular price </span>
                       <del>GHS {livePlan.regularMonthlyPrice.toLocaleString("en-GH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</del>
-                      <span className={`ml-2 text-xs font-semibold ${featured ? "text-brand-800" : "text-brand-300"}`}>Offer ends Dec 31</span>
+                      <span className={`ml-2 text-xs font-semibold ${featured ? "text-accent-800" : "text-accent-200"}`}>Offer ends Dec 31</span>
                     </p>
                   )}
                   <p className={`text-3xl font-bold tracking-tight ${featured ? "text-slate-900" : "text-white"}`}>
