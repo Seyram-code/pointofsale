@@ -8,7 +8,9 @@ const nextConfig: NextConfig = {
     remotePatterns: [{ protocol: "https", hostname: "images.unsplash.com" }],
   },
   experimental: {
+    cpus: 1,
     optimizePackageImports: ["lucide-react"],
+    workerThreads: false,
   },
   async headers() {
     return [
