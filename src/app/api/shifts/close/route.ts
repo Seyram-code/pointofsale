@@ -4,6 +4,7 @@ import { authorize } from "@/lib/auth/guard";
 import { ApiError, handleApiError, ok } from "@/lib/api/response";
 import { PERMISSIONS } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/db/prisma";
+import { calculateExpectedShiftCash } from "@/lib/utils/shift";
 
 type ShiftInput = {
   id: string;
@@ -11,6 +12,7 @@ type ShiftInput = {
   status: string;
   register: { name: string; code: string };
   openingFloat?: unknown;
+  totalCash?: unknown;
   expectedCash?: unknown;
   closingCount?: unknown;
   cashVariance?: unknown;
@@ -28,7 +30,10 @@ function serializeShift(shift: ShiftInput | null | undefined) {
     status: input.status,
     register: { name: input.register.name, code: input.register.code },
     openingFloat: Number(input.openingFloat ?? 0),
-    expectedCash: Number(input.expectedCash ?? input.openingFloat ?? 0),
+    expectedCash: calculateExpectedShiftCash(
+      Number(input.openingFloat ?? 0),
+      Number(input.totalCash ?? 0),
+    ),
     closingCount: input.closingCount === null || input.closingCount === undefined ? null : Number(input.closingCount),
     cashVariance: input.cashVariance === null || input.cashVariance === undefined ? null : Number(input.cashVariance),
     closedAt: input.closedAt ? new Date(input.closedAt).toISOString() : null,
@@ -55,7 +60,10 @@ export async function POST(request: NextRequest) {
     if (!shift) throw ApiError.notFound("Open shift");
 
     const closingCount = body.closingCount;
-    const expectedCash = Number(shift.expectedCash ?? shift.openingFloat ?? 0);
+    const expectedCash = calculateExpectedShiftCash(
+      Number(shift.openingFloat),
+      Number(shift.totalCash),
+    );
     const cashVariance = closingCount - expectedCash;
 
     const closed = await prisma.shift.update({

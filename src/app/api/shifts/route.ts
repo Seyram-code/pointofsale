@@ -5,6 +5,7 @@ import { ApiError, created, handleApiError, ok } from "@/lib/api/response";
 import { PERMISSIONS } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/db/prisma";
 import { nextNumber } from "@/lib/services/numbering.service";
+import { calculateExpectedShiftCash } from "@/lib/utils/shift";
 
 type ShiftInput = {
   id: string;
@@ -12,6 +13,7 @@ type ShiftInput = {
   status: string;
   register: { name: string; code: string };
   openingFloat?: unknown;
+  totalCash?: unknown;
   expectedCash?: unknown;
   closingCount?: unknown;
   cashVariance?: unknown;
@@ -29,7 +31,10 @@ function serializeShift(shift: ShiftInput | null | undefined) {
     status: input.status,
     register: { name: input.register.name, code: input.register.code },
     openingFloat: Number(input.openingFloat ?? 0),
-    expectedCash: Number(input.expectedCash ?? input.openingFloat ?? 0),
+    expectedCash: calculateExpectedShiftCash(
+      Number(input.openingFloat ?? 0),
+      Number(input.totalCash ?? 0),
+    ),
     closingCount: input.closingCount === null || input.closingCount === undefined ? null : Number(input.closingCount),
     cashVariance: input.cashVariance === null || input.cashVariance === undefined ? null : Number(input.cashVariance),
     closedAt: input.closedAt ? new Date(input.closedAt).toISOString() : null,
