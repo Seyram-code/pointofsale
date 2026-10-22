@@ -94,3 +94,15 @@ curl --fail --silent --show-error \
 ```
 
 Active Super Admin accounts with an email address receive alerts for new business registrations and support tickets. The scheduled health check emails new platform notices and later recovery notices; active signals are deduplicated and retried if SMTP delivery fails. Apply the `20261008100000_add_platform_health_signals` Prisma migration before enabling the cron job.
+
+## 8. Subscription expiry reminder emails
+
+Configure SMTP and `CRON_SECRET`, then apply the `20261022200000_add_subscription_expiry_reminders` Prisma migration. Create a daily Hostinger cron job (for example, `0 9 * * *`) to call the protected endpoint:
+
+```bash
+curl --fail --silent --show-error --max-time 50 \
+	-H "Authorization: ******" \
+	https://your-domain.example/api/cron/subscription-expiry-reminders
+```
+
+The endpoint sends one reminder per shop per day when its active, trialing, or past-due subscription has 5, 4, 3, 2, or 1 calendar days remaining in the shop's timezone. It uses the shop email, falling back to the first active administrator email. Successful reminders are deduplicated for that subscription period and day; failed attempts remain eligible for retry. Shops without an email address are reported as skipped. The response includes counts for eligible, sent, skipped, missing-email, and failed reminders.

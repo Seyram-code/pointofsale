@@ -11,7 +11,8 @@ import { Select } from "@/components/ui/Select";
 import { StatCard } from "@/components/ui/StatCard";
 import { api, buildQuery } from "@/lib/api/client";
 import type { ReportData } from "@/lib/services/report.service";
-import { ExpenseReportSummary } from "@/components/reports/ExpenseReportSummary";
+import { ExpenseReportSummary, type ExpenseReportData } from "@/components/reports/ExpenseReportSummary";
+import { EXPENSE_CATEGORY_LABELS, EXPENSE_PAYMENT_METHOD_LABELS } from "@/lib/validations/expense.schema";
 
 type Period = "daily" | "weekly" | "monthly" | "yearly";
 
@@ -25,6 +26,8 @@ export function ReportsWorkspace({ initialData, canViewAll, canViewExpenses, cur
   const [productId, setProductId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [loading, setLoading] = useState(false);
+  const [expenseSummary, setExpenseSummary] = useState<ExpenseReportData | null>(null);
+  const [expenseLoading, setExpenseLoading] = useState(false);
 
   const loadReport = useCallback(async () => {
     setLoading(true);
@@ -90,7 +93,7 @@ export function ReportsWorkspace({ initialData, canViewAll, canViewExpenses, cur
       <PageHeader
         title="Reports"
         description="Sales, payment and profitability reporting for your store."
-        actions={<div className="flex flex-wrap gap-2"><Button variant="outline" leftIcon={<FileSpreadsheet className="size-4" />} onClick={exportCsv}>CSV / Excel</Button><Button variant="outline" leftIcon={<Printer className="size-4" />} onClick={() => window.print()}>PDF / Print</Button></div>}
+        actions={<div className="flex flex-wrap gap-2"><Button variant="outline" leftIcon={<FileSpreadsheet className="size-4" />} onClick={exportCsv}>CSV / Excel</Button><Button variant="outline" leftIcon={<Printer className="size-4" />} onClick={() => window.print()} disabled={loading || (canViewExpenses && (expenseLoading || !expenseSummary))}>PDF / Print</Button></div>}
       />
 
       <div className="mb-4 grid gap-3 rounded-card border border-line bg-card p-3 sm:grid-cols-2 lg:grid-cols-4 sm:p-4">
@@ -128,7 +131,7 @@ export function ReportsWorkspace({ initialData, canViewAll, canViewExpenses, cur
         <PaymentBreakdown summary={summary} />
       </div>
 
-      {canViewExpenses && <div className="report-screen-only"><ExpenseReportSummary /></div>}
+      {canViewExpenses && data && <div className="report-screen-only"><ExpenseReportSummary from={data.range.from} to={data.range.to} onSummaryChange={setExpenseSummary} onLoadingChange={setExpenseLoading} /></div>}
 
       <Card className="mt-4"><CardHeader><CardTitle>Top items</CardTitle></CardHeader><CardContent className="p-0"><div className="divide-y divide-[var(--border-base)]">{(data?.topProducts ?? []).map((product, index) => <div key={`${product.sku}-${index}`} className="flex items-center gap-3 px-4 py-3"><span className="flex size-7 items-center justify-center rounded-lg bg-muted text-xs tabular">{index + 1}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-fg">{product.name}</p><p className="text-xs text-fg-muted">{product.sku} · {product.quantity} sold</p></div><Money value={product.sales} className="font-semibold text-fg" /></div>)}</div></CardContent></Card>
       </div>
@@ -163,6 +166,40 @@ export function ReportsWorkspace({ initialData, canViewAll, canViewExpenses, cur
               <tr><td>Profit (gross profit)</td><td><Money value={summary?.grossProfit ?? 0} /></td></tr>
             </tbody>
           </table>
+          {canViewExpenses && (
+            <>
+              <h2>Operating expenses</h2>
+              {expenseSummary ? (
+                <>
+                  <table className="report-print-table report-metrics-table">
+                    <thead><tr><th>Category</th><th>Amount</th></tr></thead>
+                    <tbody>
+                      {expenseSummary.categories.map((item) => <tr key={item.category}><td>{item.label}</td><td><Money value={item.amount} /></td></tr>)}
+                      <tr><th>Total recorded expenses ({expenseSummary.count} items)</th><th><Money value={expenseSummary.total} /></th></tr>
+                    </tbody>
+                  </table>
+                  {expenseSummary.truncated && <p className="report-print-warning">Only the first 500 expense records are shown. Narrow the report period to include all matching records.</p>}
+                  {expenseSummary.expenses.length > 0 ? (
+                    <table className="report-print-table report-expense-table">
+                      <thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Payment</th><th>Amount</th></tr></thead>
+                      <tbody>
+                        {expenseSummary.expenses.map((expense) => (
+                          <tr key={expense.id}>
+                            <td>{expense.expenseDate.slice(0, 10)}</td>
+                            <td>{expense.description}</td>
+                            <td>{EXPENSE_CATEGORY_LABELS[expense.category]}</td>
+                            <td>{EXPENSE_PAYMENT_METHOD_LABELS[expense.paymentMethod]}</td>
+                            <td><Money value={expense.amount} /></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : <p>No expenses were recorded in this period.</p>}
+                  <p className="report-print-note">Recorded operating expenses are shown separately and are not included in gross profit.</p>
+                </>
+              ) : <p>Expense data was not available when this report was prepared.</p>}
+            </>
+          )}
           <footer>Generated {new Intl.DateTimeFormat("en-GH", { dateStyle: "medium", timeStyle: "short" }).format(new Date())}</footer>
         </section>
       )}

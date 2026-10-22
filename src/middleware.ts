@@ -28,6 +28,8 @@ const PUBLIC_PATHS = [
   "/api/contact",
   "/api/health",
   "/api/cron/reconcile-payments",
+  "/api/cron/subscription-expiry-reminders",
+  "/api/cron/platform-health-alerts",
   // Provider callbacks authenticate by signature, not by session.
   "/api/payments/webhook",
 ];
