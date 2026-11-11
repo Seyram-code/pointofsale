@@ -18,7 +18,7 @@ export default async function PosPage() {
   const { user } = await requirePermission(PERMISSIONS.POS_ACCESS, "/pos");
   const [categories, store, paystackEnabled] = await Promise.all([
     user.storeId ? listPosCategories(user.storeId) : Promise.resolve([]),
-    user.storeId ? prisma.store.findUnique({ where: { id: user.storeId }, select: { email: true } }) : Promise.resolve(null),
+    user.storeId ? prisma.store.findUnique({ where: { id: user.storeId }, select: { email: true, name: true } }) : Promise.resolve(null),
     user.storeId ? isPaystackEnabled(user.storeId) : Promise.resolve(false),
   ]);
   const paymentMethods = METHODS.filter((method) =>
@@ -33,6 +33,7 @@ export default async function PosPage() {
       mockCardDriver={isMockCardDriver()}
       mockMomoDriver={isMockMomoDriver()}
       storeEmail={store?.email ?? ""}
+      storeName={store?.name ?? "VidyPOS"}
       isRestaurant={user.businessType === "RESTAURANT"}
       permissions={{
         canDiscount: user.permissions.includes(PERMISSIONS.POS_DISCOUNT_APPLY),

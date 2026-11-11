@@ -68,6 +68,7 @@ export interface PosTerminalProps {
   mockCardDriver: boolean;
   mockMomoDriver: boolean;
   storeEmail: string;
+  storeName: string;
   isRestaurant: boolean;
 }
 
@@ -92,7 +93,7 @@ const SHORTCUTS = [
   ["F8", "Checkout"],
 ] as const;
 
-export function PosTerminal({ categories, permissions, paymentMethods, paystackMethods, mockCardDriver, mockMomoDriver, storeEmail, isRestaurant }: PosTerminalProps) {
+export function PosTerminal({ categories, permissions, paymentMethods, paystackMethods, mockCardDriver, mockMomoDriver, storeEmail, storeName, isRestaurant }: PosTerminalProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const toast = useToast();
@@ -348,6 +349,51 @@ export function PosTerminal({ categories, permissions, paymentMethods, paystackM
       barcodeRef.current?.focus();
     }
   }, [cart, isRestaurant, orderType, permissions.canHold, tableNumber, toast]);
+
+  const generateInvoice = useCallback(async () => {
+    if (cart.lines.length === 0 || !permissions.canHold) return;
+
+    // Open synchronously so browsers do not block the printable document after the API request.
+    const invoiceWindow = window.open("", "_blank", "width=800,height=900");
+    setBusy(true);
+    try {
+      const sale = await api.post<{ id: string; receiptNumber: string }>("/sales/hold", {
+        items: cart.lines.map((line) => ({ productId: line.productId, quantity: line.quantity, optionIds: line.optionIds })),
+        customerId: cart.customer?.id ?? null,
+        ...(isRestaurant ? { orderType, tableNumber: orderType === "DINE_IN" ? tableNumber : undefined } : {}),
+        discount: cart.discount ?? undefined,
+        note: cart.note || undefined,
+        resumeSaleId: cart.resumedSaleId ?? undefined,
+      });
+
+      if (invoiceWindow) {
+        invoiceWindow.document.write(createInvoiceDocument({
+          storeName,
+          invoiceNumber: sale.receiptNumber,
+          customerName: cart.customer?.fullName ?? "Walk-in customer",
+          customerPhone: cart.customer?.phone ?? null,
+          lines: cart.lines,
+          subtotal: cart.totals.total - cart.totals.taxAmount,
+          discount: cart.totals.discountAmount,
+          tax: cart.totals.taxAmount,
+          total: cart.totals.total,
+        }));
+        invoiceWindow.document.close();
+        invoiceWindow.focus();
+        window.setTimeout(() => invoiceWindow.print(), 250);
+      }
+
+      toast.success("Invoice generated", "It is saved as a held sale and can be resumed for payment later.");
+      cart.clear();
+      setCartOpen(false);
+    } catch (error) {
+      invoiceWindow?.close();
+      toast.error(error instanceof ApiClientError ? error.message : "Could not generate the invoice");
+    } finally {
+      setBusy(false);
+      barcodeRef.current?.focus();
+    }
+  }, [cart, isRestaurant, orderType, permissions.canHold, storeName, tableNumber, toast]);
 
   const resumeSale = useCallback(
     async (saleId: string) => {
@@ -605,6 +651,7 @@ export function PosTerminal({ categories, permissions, paymentMethods, paystackM
           canSelectCustomer={customersEnabled}
           onOpenDiscount={() => setDiscountOpen(true)}
           onHold={holdSale}
+          onGenerateInvoice={generateInvoice}
           onClear={() => setClearOpen(true)}
           onCheckout={() => setCheckoutOpen(true)}
           onCloseMobile={() => setCartOpen(false)}
@@ -713,6 +760,35 @@ export function PosTerminal({ categories, permissions, paymentMethods, paystackM
       />
     </div>
   );
+}
+
+function createInvoiceDocument({
+  storeName,
+  invoiceNumber,
+  customerName,
+  customerPhone,
+  lines,
+  subtotal,
+  discount,
+  tax,
+  total,
+}: {
+  storeName: string;
+  invoiceNumber: string;
+  customerName: string;
+  customerPhone: string | null;
+  lines: CartLine[];
+  subtotal: number;
+  discount: number;
+  tax: number;
+  total: number;
+}) {
+  const escape = (value: string) => value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[character] ?? character);
+  const money = (value: number) => new Intl.NumberFormat("en-GH", { style: "currency", currency: "GHS", currencyDisplay: "narrowSymbol" }).format(value);
+  const quantity = (value: number) => new Intl.NumberFormat("en-GH", { maximumFractionDigits: 3 }).format(value);
+  const rows = lines.map((line) => `<tr><td><strong>${escape(line.name)}</strong>${line.selectedOptions.length ? `<br><small>${escape(line.selectedOptions.map((option) => option.name).join(", "))}</small>` : ""}</td><td>${quantity(line.quantity)}</td><td>${money(line.unitPrice)}</td><td>${money(line.unitPrice * line.quantity)}</td></tr>`).join("");
+
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Invoice ${escape(invoiceNumber)}</title><style>body{font-family:Arial,sans-serif;color:#172033;margin:0;padding:40px;background:#fff}main{max-width:760px;margin:auto}header{display:flex;justify-content:space-between;border-bottom:2px solid #0f766e;padding-bottom:22px;margin-bottom:28px}h1{margin:0;color:#0f766e;font-size:28px}h2{margin:4px 0;font-size:18px}.muted,small{color:#64748b}table{width:100%;border-collapse:collapse;margin-top:28px}th{text-align:left;background:#f1f5f9;font-size:12px;text-transform:uppercase;letter-spacing:.04em}th,td{padding:12px;border-bottom:1px solid #e2e8f0}th:nth-child(n+2),td:nth-child(n+2){text-align:right}.totals{margin:26px 0 0 auto;width:300px}.total-row{border-top:2px solid #0f766e;font-size:19px;font-weight:bold;padding-top:12px;margin-top:8px}.line{display:flex;justify-content:space-between;padding:4px 0}@media print{body{padding:0}main{max-width:none}}</style></head><body><main><header><div><h2>${escape(storeName)}</h2><p class="muted">Pro forma invoice — payment pending</p></div><div style="text-align:right"><h1>INVOICE</h1><strong>${escape(invoiceNumber)}</strong><p class="muted">${new Intl.DateTimeFormat("en-GH", { dateStyle: "medium", timeStyle: "short", timeZone: "Africa/Accra" }).format(new Date())}</p></div></header><section><strong>Bill to</strong><p>${escape(customerName)}${customerPhone ? `<br>${escape(customerPhone)}` : ""}</p></section><table><thead><tr><th>Item</th><th>Qty</th><th>Unit price</th><th>Amount</th></tr></thead><tbody>${rows}</tbody></table><div class="totals"><div class="line"><span>Subtotal</span><span>${money(subtotal)}</span></div><div class="line"><span>Discount</span><span>${money(discount)}</span></div><div class="line"><span>Tax</span><span>${money(tax)}</span></div><div class="line total-row"><span>Total due</span><span>${money(total)}</span></div></div><p class="muted" style="margin-top:42px">This invoice is not a payment receipt. Use the browser print dialog to print it or choose “Save as PDF” to download it.</p></main></body></html>`;
 }
 
 function CategoryChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { CreditCard, Eraser, PauseCircle, Percent, ShoppingCart, UserRound, X } from "lucide-react";
+import { CreditCard, Eraser, FileText, PauseCircle, Percent, ShoppingCart, UserRound, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Money } from "@/components/ui/Money";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -22,6 +22,7 @@ export interface CartPanelProps {
   onOpenCustomer: () => void;
   onOpenDiscount: () => void;
   onHold: () => void;
+  onGenerateInvoice: () => void;
   onClear: () => void;
   onCheckout: () => void;
   onCloseMobile?: () => void;
@@ -43,6 +44,7 @@ export function CartPanel({
   onOpenCustomer,
   onOpenDiscount,
   onHold,
+  onGenerateInvoice,
   onClear,
   onCheckout,
   onCloseMobile,
@@ -178,7 +180,7 @@ export function CartPanel({
           </div>
         </dl>
 
-        <div className="mt-3 grid grid-cols-3 gap-2">
+        <div className="mt-3 grid grid-cols-2 gap-2">
           <Button
             size="sm"
             variant="outline"
@@ -196,6 +198,15 @@ export function CartPanel({
             leftIcon={<PauseCircle className="size-4" />}
           >
             Hold
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={empty || !canHold || busy}
+            onClick={onGenerateInvoice}
+            leftIcon={<FileText className="size-4" />}
+          >
+            Invoice
           </Button>
           <Button
             size="sm"
