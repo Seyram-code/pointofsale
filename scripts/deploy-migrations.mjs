@@ -216,7 +216,7 @@ async function reconcileSubscriptionExpiryReminders(tables, applied) {
       const indexNames = new Set(indexes.map((index) => index.indexName));
       const complete = [...requiredColumns].every((column) => columnNames.has(column))
         && indexNames.has("PRIMARY")
-        && indexNames.has("SubscriptionExpiryReminder_subscriptionId_periodEnd_daysBefore_key")
+        && indexNames.has("SubExpRem_subscriptionId_periodEnd_daysBefore_key")
         && indexNames.has("SubscriptionExpiryReminder_status_lastAttemptAt_idx")
         && foreignKeys.length > 0;
 

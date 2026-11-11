@@ -8,7 +8,7 @@ CREATE TABLE `SubscriptionExpiryReminder` (
   `lastAttemptAt` DATETIME(3) NULL,
   `sentAt` DATETIME(3) NULL,
   `lastError` TEXT NULL,
-  UNIQUE INDEX `SubscriptionExpiryReminder_subscriptionId_periodEnd_daysBefore_key` (`subscriptionId`, `periodEnd`, `daysBefore`),
+  UNIQUE INDEX `SubExpRem_subscriptionId_periodEnd_daysBefore_key` (`subscriptionId`, `periodEnd`, `daysBefore`),
   INDEX `SubscriptionExpiryReminder_status_lastAttemptAt_idx` (`status`, `lastAttemptAt`),
   PRIMARY KEY (`id`),
   CONSTRAINT `SubscriptionExpiryReminder_subscriptionId_fkey`
