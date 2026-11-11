@@ -16,6 +16,7 @@ const ENCRYPTED_STAFF_ACCESS_CODES = "20261002140000_store_encrypted_staff_acces
 const STORE_EMAIL_ACTIVATION = "20261003100000_add_store_email_activation";
 const PASSWORD_RESET_TOKENS = "20261004160000_add_password_reset_tokens";
 const PLATFORM_HEALTH_SIGNALS = "20261008100000_add_platform_health_signals";
+const SUBSCRIPTION_EXPIRY_REMINDERS = "20261022200000_add_subscription_expiry_reminders";
 let connection;
 
 async function query(sql, values) {
@@ -190,6 +191,55 @@ async function reconcilePlatformHealthSignals(tables, applied) {
   }
 }
 
+/**
+ * Prisma will not run any later migration while this migration is marked
+ * failed. A Hostinger deployment may lose its connection immediately after
+ * MySQL creates the table, leaving that state behind. Only reconcile it when
+ * every column, index, and foreign key from the migration is present.
+ */
+async function reconcileSubscriptionExpiryReminders(tables, applied) {
+  const tableName = "SubscriptionExpiryReminder";
+  const tableExists = tables.has(tableName);
+
+  if (applied.has(SUBSCRIPTION_EXPIRY_REMINDERS) && !tableExists) {
+    throw new Error("The subscription expiry reminder migration is marked successful, but its table is missing.");
+  }
+  if (applied.has(SUBSCRIPTION_EXPIRY_REMINDERS) || tableExists) {
+    if (tableExists) {
+      const [columns, indexes, foreignKeys] = await Promise.all([
+        query("SELECT COLUMN_NAME AS columnName FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?", [tableName]),
+        query("SELECT INDEX_NAME AS indexName FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? GROUP BY INDEX_NAME", [tableName]),
+        query("SELECT CONSTRAINT_NAME AS constraintName FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = 'subscriptionId' AND REFERENCED_TABLE_NAME = 'StoreSubscription'", [tableName]),
+      ]);
+      const requiredColumns = new Set(["id", "subscriptionId", "periodEnd", "daysBefore", "status", "attempts", "lastAttemptAt", "sentAt", "lastError"]);
+      const columnNames = new Set(columns.map((column) => column.columnName));
+      const indexNames = new Set(indexes.map((index) => index.indexName));
+      const complete = [...requiredColumns].every((column) => columnNames.has(column))
+        && indexNames.has("PRIMARY")
+        && indexNames.has("SubscriptionExpiryReminder_subscriptionId_periodEnd_daysBefore_key")
+        && indexNames.has("SubscriptionExpiryReminder_status_lastAttemptAt_idx")
+        && foreignKeys.length > 0;
+
+      if (!complete) {
+        throw new Error("SubscriptionExpiryReminder exists but is incomplete; inspect or repair it before deploying migrations.");
+      }
+      if (!applied.has(SUBSCRIPTION_EXPIRY_REMINDERS)) {
+        resolveMigration(SUBSCRIPTION_EXPIRY_REMINDERS);
+        applied.add(SUBSCRIPTION_EXPIRY_REMINDERS);
+      }
+    }
+    return;
+  }
+
+  if (!tables.has("_prisma_migrations")) return;
+
+  const failedRows = await query(
+    "SELECT migration_name AS migrationName FROM _prisma_migrations WHERE migration_name = ? AND finished_at IS NULL AND rolled_back_at IS NULL",
+    [SUBSCRIPTION_EXPIRY_REMINDERS],
+  );
+  if (failedRows.length > 0) resolveMigration(SUBSCRIPTION_EXPIRY_REMINDERS, "rolled-back");
+}
+
 async function reconcileStaffAccessCodeSchema(tables, applied) {
   if (!tables.has("User")) return;
 
@@ -274,6 +324,7 @@ async function main() {
   await reconcileStoreEmailActivation(tables, currentApplied);
   await reconcilePasswordResetTokens(tables, currentApplied);
   await reconcilePlatformHealthSignals(tables, currentApplied);
+  await reconcileSubscriptionExpiryReminders(tables, currentApplied);
   deployMigrations();
 }
 
