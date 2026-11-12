@@ -18,8 +18,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const { id } = await params;
     const { action } = returnActionSchema.parse(await request.json());
 
-    if (action === "APPROVE" || action === "REJECT") {
+    if (action === "APPROVE" || action === "REJECT" || action === "COMPLETE") {
+      if (session.user.role !== "ADMIN" && session.user.role !== "SUPER_ADMIN") {
+        throw new ApiError("FORBIDDEN", "Only administrators can approve or complete refunds", 403);
+      }
       await authorize(PERMISSIONS.RETURNS_APPROVE, { planFeature: "returns" });
+    }
+
+    if (action === "APPROVE" || action === "REJECT") {
       const updated = await prisma.saleReturn.updateMany({
         where: { id, storeId, status: "PENDING" },
         data: action === "APPROVE" ? { status: "APPROVED", approvedById: session.user.id, approvedAt: new Date() } : { status: "REJECTED", approvedById: session.user.id, approvedAt: new Date() },

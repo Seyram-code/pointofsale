@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Money } from "@/components/ui/Money";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -27,8 +26,7 @@ function parseDateRange(fromInput: string, toInput: string) {
 
 async function loadSales(fromQuery?: string, toQuery?: string) {
   const { user } = await requirePermission(PERMISSIONS.SALES_VIEW, "/sales");
-  if (user.isEmployee) redirect("/forbidden");
-  const canViewAll = user.permissions.includes(PERMISSIONS.SALES_VIEW_ALL);
+  const canViewAll = !user.isEmployee && user.permissions.includes(PERMISSIONS.SALES_VIEW_ALL);
   const range = parseDateRange(fromQuery ?? "", toQuery ?? "");
   if (!user.storeId) return { sales: [], staff: [], canViewAll, range };
 

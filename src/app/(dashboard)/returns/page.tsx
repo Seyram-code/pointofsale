@@ -30,7 +30,7 @@ export default async function ReturnsPage() {
       <PageHeader title="Returns" description="Review returned items, refunds and approval status." />
       <ReturnsWorkspace
         canCreate={user.permissions.includes(PERMISSIONS.RETURNS_CREATE)}
-        canApprove={user.permissions.includes(PERMISSIONS.RETURNS_APPROVE)}
+        canApprove={(user.role === "ADMIN" || user.role === "SUPER_ADMIN") && user.permissions.includes(PERMISSIONS.RETURNS_APPROVE)}
         returns={returns.map((item) => ({
           id: item.id,
           returnNumber: item.returnNumber,

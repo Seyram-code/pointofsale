@@ -72,7 +72,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "Reports", href: "/reports", icon: BarChart3, permission: PERMISSIONS.REPORTS_DAILY, primary: true },
       { label: "Expenses", href: "/expenses", icon: ReceiptText, permission: PERMISSIONS.EXPENSES_VIEW },
       { label: "Employees", href: "/employees", icon: UserSquare, permission: PERMISSIONS.EMPLOYEES_VIEW },
-      { label: "Returns", href: "/returns", icon: RotateCcw, permission: PERMISSIONS.RETURNS_VIEW },
+      { label: "Returns", href: "/returns", icon: RotateCcw, permission: PERMISSIONS.RETURNS_VIEW, primary: true },
       { label: "Settings", href: "/settings", icon: Settings, permission: PERMISSIONS.SETTINGS_VIEW },
       { label: "Subscription", href: "/subscription", icon: CreditCard },
       { label: "Help & Support", href: "/support", icon: LifeBuoy },
@@ -104,7 +104,7 @@ export function visibleSections(permissions: readonly string[], role?: UserRole,
     ...section,
     items: section.items.filter((item) => {
       if (role === "KITCHEN" && item.href !== "/kitchen") return false;
-      if (isEmployee && ["/subscription", "/sales"].includes(item.href)) return false;
+      if (isEmployee && item.href === "/subscription") return false;
       if (item.href === "/dashboard" && role === "KITCHEN") return false;
       if (item.href === "/kitchen" && !isRestaurant) return false;
       if (item.role && item.role !== role) {
@@ -129,7 +129,7 @@ export function mobileNavItems(permissions: readonly string[], role?: UserRole, 
     .filter((item) => role !== "KITCHEN" || item.href === "/kitchen")
     .filter((item) => !item.role || item.role === role)
     .filter((item) => item.href !== "/dashboard" || role !== "KITCHEN")
-    .filter((item) => !isEmployee || !["/subscription", "/sales"].includes(item.href))
+    .filter((item) => !isEmployee || item.href !== "/subscription")
     .filter((item) => item.href !== "/kitchen" || isRestaurant)
     .filter((item) => item.primary && (!item.permission || permissions.includes(item.permission)))
     .slice(0, 5);
